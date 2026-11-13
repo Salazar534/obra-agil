@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Obra Ágil",
+    "slug": "obra-agil",
+    "scheme": "obraagil",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F2F2F7",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "br.com.obraagil.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Usamos sua localização para mostrar locadoras perto da sua obra."
+      }
+    },
+    "android": {
+      "package": "br.com.obraagil.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#BFE3F2",
+        "foregroundImage": "./assets/adaptive-icon.png"
+      },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Usamos sua localização para mostrar locadoras perto da sua obra."
+        }
+      ]
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

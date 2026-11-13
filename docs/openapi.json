@@ -1,0 +1,4391 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Obra Ágil API",
+    "version": "1.0.0",
+    "description": "API do Obra Ágil, marketplace de aluguel de equipamentos de obra. Todas as rotas ficam em /api. A sessão é um cookie httpOnly (oa_session) criado no cadastro ou na entrada. Valores em reais (número com 2 casas). Datas de calendário em YYYY-MM-DD e instantes em milissegundos desde 1970 (epoch)."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Meta",
+      "description": "Configuração pública e saúde do servidor."
+    },
+    {
+      "name": "Auth",
+      "description": "Cadastro, entrada com e-mail e senha ou celular e código SMS, recuperação de senha e sessão."
+    },
+    {
+      "name": "Me",
+      "description": "Perfil da conta logada: dados, endereços, salvos e buscas recentes."
+    },
+    {
+      "name": "Explore",
+      "description": "Busca pública de locadoras e equipamentos perto de um endereço."
+    },
+    {
+      "name": "My business",
+      "description": "Painel da locadora: dados da loja e estoque."
+    },
+    {
+      "name": "Orders",
+      "description": "Pedidos de aluguel: criação com pagamento, andamento, conversa e avaliação."
+    },
+    {
+      "name": "Payments",
+      "description": "Cartões salvos e parcelamento via Mercado Pago."
+    },
+    {
+      "name": "Uploads",
+      "description": "Envio de fotos (perfil, logo, capa e equipamentos)."
+    },
+    {
+      "name": "Events",
+      "description": "Atualizações ao vivo via Server-Sent Events."
+    },
+    {
+      "name": "Webhooks",
+      "description": "Notificações enviadas pelo Mercado Pago."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "oa_session"
+      }
+    },
+    "schemas": {
+      "PublicConfig": {
+        "type": "object",
+        "properties": {
+          "payments": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "provider": {
+                "type": "string",
+                "const": "mercadopago"
+              },
+              "publicKey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "maxInstallments": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "enabled",
+              "provider",
+              "publicKey",
+              "maxInstallments"
+            ],
+            "additionalProperties": false
+          },
+          "sms": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "twilio",
+                  "console",
+                  "disabled"
+                ],
+                "description": "console: código no terminal da API (desenvolvimento)."
+              }
+            },
+            "required": [
+              "enabled",
+              "mode"
+            ],
+            "additionalProperties": false
+          },
+          "email": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "smtp",
+                  "console",
+                  "disabled"
+                ]
+              }
+            },
+            "required": [
+              "enabled",
+              "mode"
+            ],
+            "additionalProperties": false
+          },
+          "serviceFeeRate": {
+            "type": "number",
+            "description": "Taxa de serviço sobre o aluguel (0.05 = 5%)."
+          }
+        },
+        "required": [
+          "payments",
+          "sms",
+          "email",
+          "serviceFeeRate"
+        ],
+        "additionalProperties": false
+      },
+      "Role": {
+        "type": "string",
+        "enum": [
+          "customer",
+          "business"
+        ],
+        "description": "customer: quem aluga. business: locadora."
+      },
+      "Category": {
+        "type": "string",
+        "enum": [
+          "concreto",
+          "andaimes",
+          "ferramentas",
+          "energia",
+          "compactacao",
+          "escavacao",
+          "elevacao",
+          "limpeza"
+        ],
+        "description": "Categoria de equipamento."
+      },
+      "Session": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/Me"
+          },
+          "business": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Business"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "user",
+          "business"
+        ],
+        "additionalProperties": false,
+        "description": "Conta logada e, para empresas, a loja."
+      },
+      "Me": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "description": "Celular verificado, só dígitos.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cpf": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hasPassword": {
+            "type": "boolean",
+            "description": "A conta pode entrar com e-mail e senha."
+          },
+          "photo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prefs": {
+            "$ref": "#/components/schemas/Prefs"
+          },
+          "tipDismissed": {
+            "type": "boolean"
+          },
+          "recentSearches": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "addresses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SavedAddress"
+            }
+          },
+          "activeAddressId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "favoriteIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Ids de equipamentos e lojas salvos."
+          },
+          "businessId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "name",
+          "email",
+          "phone",
+          "cpf",
+          "hasPassword",
+          "photo",
+          "prefs",
+          "tipDismissed",
+          "recentSearches",
+          "addresses",
+          "activeAddressId",
+          "favoriteIds",
+          "businessId",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "description": "A conta logada."
+      },
+      "Prefs": {
+        "type": "object",
+        "properties": {
+          "orders": {
+            "type": "boolean"
+          },
+          "promos": {
+            "type": "boolean"
+          },
+          "sounds": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "orders",
+          "promos",
+          "sounds"
+        ],
+        "additionalProperties": false,
+        "description": "Avisos de pedidos, promoções e sons."
+      },
+      "SavedAddress": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number"
+          },
+          "lng": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "label",
+          "detail",
+          "lat",
+          "lng",
+          "id"
+        ],
+        "additionalProperties": false
+      },
+      "Business": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tagline": {
+            "type": "string"
+          },
+          "about": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "cover": {
+            "type": "string"
+          },
+          "logo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": "string"
+          },
+          "address": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "opens": {
+            "type": "string",
+            "description": "HH:MM"
+          },
+          "closes": {
+            "type": "string",
+            "description": "HH:MM"
+          },
+          "deliveryFee": {
+            "type": "number"
+          },
+          "radiusKm": {
+            "type": "integer"
+          },
+          "rating": {
+            "type": "number",
+            "description": "Média de 0 a 5; 0 quando ainda não há avaliações."
+          },
+          "reviewCount": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "distanceKm": {
+            "description": "Distância até o ponto da busca.",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "ownerId",
+          "name",
+          "tagline",
+          "about",
+          "category",
+          "cover",
+          "logo",
+          "phone",
+          "address",
+          "opens",
+          "closes",
+          "deliveryFee",
+          "radiusKm",
+          "rating",
+          "reviewCount",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "description": "Locadora."
+      },
+      "Address": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "lat": {
+            "type": "number"
+          },
+          "lng": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "label",
+          "detail",
+          "lat",
+          "lng"
+        ],
+        "additionalProperties": false,
+        "description": "Endereço com coordenadas."
+      },
+      "Item": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "businessId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "price": {
+            "type": "number",
+            "description": "Preço por dia."
+          },
+          "deposit": {
+            "type": "number",
+            "description": "Caução, devolvida no fim do aluguel."
+          },
+          "description": {
+            "type": "string"
+          },
+          "specs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "image": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "rentals": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "businessId",
+          "name",
+          "category",
+          "price",
+          "deposit",
+          "description",
+          "specs",
+          "image",
+          "quantity",
+          "available",
+          "rentals",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "description": "Equipamento para alugar."
+      },
+      "Review": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "businessId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author": {
+            "type": "string"
+          },
+          "authorPhoto": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stars": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "text": {
+            "type": "string"
+          },
+          "at": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "businessId",
+          "orderId",
+          "author",
+          "authorPhoto",
+          "stars",
+          "text",
+          "at"
+        ],
+        "additionalProperties": false,
+        "description": "Avaliação de uma locadora."
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "Número curto do pedido, como #1001."
+          },
+          "customerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "businessId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "itemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "item": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "image": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "image"
+            ],
+            "additionalProperties": false
+          },
+          "business": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "logo": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "phone": {
+                "type": "string"
+              },
+              "address": {
+                "$ref": "#/components/schemas/Address"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "logo",
+              "phone",
+              "address"
+            ],
+            "additionalProperties": false
+          },
+          "customer": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "photo": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "phone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "photo",
+              "phone"
+            ],
+            "additionalProperties": false
+          },
+          "start": {
+            "type": "string",
+            "description": "Primeiro dia do aluguel, YYYY-MM-DD."
+          },
+          "days": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "delivery",
+              "pickup"
+            ]
+          },
+          "address": {
+            "description": "Endereço de entrega, ou da loja na retirada.",
+            "$ref": "#/components/schemas/Address"
+          },
+          "rent": {
+            "type": "number"
+          },
+          "deliveryFee": {
+            "type": "number"
+          },
+          "serviceFee": {
+            "type": "number"
+          },
+          "deposit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number",
+            "description": "Valor cobrado: aluguel + entrega + taxa de serviço + caução."
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "$ref": "#/components/schemas/OrderStatus"
+                },
+                "at": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "status",
+                "at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "payment": {
+            "$ref": "#/components/schemas/OrderPayment"
+          },
+          "reviewed": {
+            "type": "boolean"
+          },
+          "unread": {
+            "type": "integer",
+            "description": "Mensagens não lidas por quem fez a requisição."
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "customerId",
+          "businessId",
+          "itemId",
+          "item",
+          "business",
+          "customer",
+          "start",
+          "days",
+          "mode",
+          "address",
+          "rent",
+          "deliveryFee",
+          "serviceFee",
+          "deposit",
+          "total",
+          "status",
+          "history",
+          "payment",
+          "reviewed",
+          "unread",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "description": "Pedido de aluguel."
+      },
+      "OrderStatus": {
+        "type": "string",
+        "enum": [
+          "awaiting_payment",
+          "pending",
+          "accepted",
+          "on_the_way",
+          "delivered",
+          "returned",
+          "declined",
+          "cancelled"
+        ],
+        "description": "awaiting_payment: Pix gerado, esperando pagamento. pending: pago, esperando a loja. accepted: loja aceitou. on_the_way: saiu para entrega ou pronto para retirada. delivered: com o cliente. returned: devolvido (caução estornada). declined: loja recusou (estornado). cancelled: cancelado (estornado se pago)."
+      },
+      "OrderPayment": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "enum": [
+              "card",
+              "pix"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "description": "Ex.: Mastercard •••• 6351 · 3x"
+          },
+          "installments": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PaymentStatus"
+          },
+          "detail": {
+            "description": "Motivo informado pelo Mercado Pago.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refunded": {
+            "type": "number",
+            "description": "Total já estornado."
+          },
+          "pix": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "qrCode": {
+                    "type": "string",
+                    "description": "Pix copia e cola."
+                  },
+                  "qrCodeBase64": {
+                    "type": "string",
+                    "description": "Imagem PNG do QR code em base64."
+                  },
+                  "ticketUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "expiresAt": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "qrCode",
+                  "qrCodeBase64",
+                  "ticketUrl",
+                  "expiresAt"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Presente enquanto o Pix espera pagamento."
+          }
+        },
+        "required": [
+          "method",
+          "label",
+          "installments",
+          "status",
+          "detail",
+          "refunded",
+          "pix"
+        ],
+        "additionalProperties": false
+      },
+      "PaymentStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "approved",
+          "rejected",
+          "cancelled",
+          "refunded",
+          "partially_refunded"
+        ]
+      },
+      "Message": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "from": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "text": {
+            "type": "string"
+          },
+          "at": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "orderId",
+          "from",
+          "text",
+          "at"
+        ],
+        "additionalProperties": false,
+        "description": "Mensagem do chat do pedido."
+      },
+      "PaymentMethod": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cardId": {
+            "type": "string",
+            "description": "Id do cartão no Mercado Pago, para createCardToken({ cardId }) junto com o CVV."
+          },
+          "brand": {
+            "type": "string"
+          },
+          "paymentMethodId": {
+            "type": "string",
+            "description": "Id do meio no Mercado Pago, como master ou visa."
+          },
+          "issuerId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "firstSix": {
+            "type": "string"
+          },
+          "lastFour": {
+            "type": "string"
+          },
+          "expMonth": {
+            "type": "integer"
+          },
+          "expYear": {
+            "type": "integer"
+          },
+          "holder": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "cardId",
+          "brand",
+          "paymentMethodId",
+          "issuerId",
+          "firstSix",
+          "lastFour",
+          "expMonth",
+          "expYear",
+          "holder",
+          "isDefault"
+        ],
+        "additionalProperties": false,
+        "description": "Cartão salvo no Mercado Pago."
+      },
+      "Installments": {
+        "type": "object",
+        "properties": {
+          "paymentMethodId": {
+            "type": "string"
+          },
+          "brand": {
+            "type": "string"
+          },
+          "paymentTypeId": {
+            "type": "string"
+          },
+          "issuerId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "issuerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "installments": {
+                  "type": "integer"
+                },
+                "installmentAmount": {
+                  "type": "number"
+                },
+                "totalAmount": {
+                  "type": "number"
+                },
+                "rate": {
+                  "type": "number",
+                  "description": "Juros em %; 0 = sem juros."
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Ex.: 3x de R$ 41,30 sem juros"
+                }
+              },
+              "required": [
+                "installments",
+                "installmentAmount",
+                "totalAmount",
+                "rate",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "paymentMethodId",
+          "brand",
+          "paymentTypeId",
+          "issuerId",
+          "issuerName",
+          "options"
+        ],
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "examples": [
+                  "validation_error",
+                  "unauthorized",
+                  "not_found"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "description": "Mensagem pronta para mostrar ao usuário (pt-BR)."
+              },
+              "details": {
+                "description": "Detalhes extras, como os campos inválidos."
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/config": {
+      "get": {
+        "tags": [
+          "Meta"
+        ],
+        "summary": "Configuração pública do app",
+        "operationId": "getApiConfig",
+        "description": "O que está ligado neste servidor: pagamentos (e a chave pública do Mercado Pago), SMS e e-mail.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Configuração",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicConfig"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Meta"
+        ],
+        "summary": "Saúde do servidor",
+        "operationId": "getApiHealth",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Servidor e banco respondendo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "db": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "db"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "tags": [
+          "Events"
+        ],
+        "summary": "Atualizações ao vivo (Server-Sent Events)",
+        "operationId": "getApiEvents",
+        "description": "Mantém a conexão aberta (text/event-stream). Eventos: `order` (dados: Order, sempre que um pedido seu muda), `message` (dados: Message, mensagem nova num pedido seu) e `ping` (a cada 25 s). Se nada chegar por mais de um minuto, a conexão caiu: reconecte e recarregue os pedidos. Use EventSource('/api/events').\n\nRequer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fluxo text/event-stream"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Criar conta com e-mail e senha",
+        "operationId": "postApiAuthRegister",
+        "description": "Cria a conta (e a loja, para empresas), salva o endereço e já abre a sessão.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "$ref": "#/components/schemas/Role"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 80
+                  },
+                  "address": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120,
+                        "description": "Rua e número, ou nome do lugar."
+                      },
+                      "detail": {
+                        "default": "",
+                        "description": "Bairro e cidade.",
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "lat": {
+                        "type": "number",
+                        "minimum": -90,
+                        "maximum": 90
+                      },
+                      "lng": {
+                        "type": "number",
+                        "minimum": -180,
+                        "maximum": 180
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "lat",
+                      "lng"
+                    ],
+                    "description": "Endereço da obra (cliente) ou da loja (empresa)."
+                  },
+                  "business": {
+                    "description": "Obrigatório quando role = business.",
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 80
+                      },
+                      "category": {
+                        "$ref": "#/components/schemas/Category"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "category"
+                    ]
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "role",
+                  "name",
+                  "address",
+                  "email",
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Conta logada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Entrar com e-mail e senha",
+        "operationId": "postApiAuthLogin",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "email",
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conta logada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/phone/start": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Enviar código por SMS",
+        "operationId": "postApiAuthPhoneStart",
+        "description": "Envia um código de 6 dígitos para o celular. Serve para entrar e para criar conta: depois de conferir o código, /auth/phone/verify diz se o número já tem conta. Sem Twilio configurado, em desenvolvimento o código aparece no terminal da API.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone": {
+                    "description": "Celular com DDD (11 dígitos). Pontuação e +55 são aceitos.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "phone"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Código enviado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "resendIn": {
+                      "type": "integer",
+                      "description": "Segundos até poder pedir outro."
+                    }
+                  },
+                  "required": [
+                    "resendIn"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/phone/verify": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Conferir código do SMS",
+        "operationId": "postApiAuthPhoneVerify",
+        "description": "Se o celular já tem conta, abre a sessão (status signed_in). Se não, devolve um ticket (status new) para /auth/phone/register, válido por 30 minutos.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone": {
+                    "description": "Celular com DDD (11 dígitos). Pontuação e +55 são aceitos.",
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string",
+                    "pattern": "^\\d{6}$",
+                    "description": "Código de 6 dígitos recebido por SMS."
+                  }
+                },
+                "required": [
+                  "phone",
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Código certo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "signed_in"
+                        },
+                        "user": {
+                          "$ref": "#/components/schemas/Me"
+                        },
+                        "business": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/components/schemas/Business"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "user",
+                        "business"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "new"
+                        },
+                        "ticket": {
+                          "type": "string",
+                          "description": "Use em /auth/phone/register."
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "ticket"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/phone/register": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Criar conta com celular verificado",
+        "operationId": "postApiAuthPhoneRegister",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "$ref": "#/components/schemas/Role"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 80
+                  },
+                  "address": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120,
+                        "description": "Rua e número, ou nome do lugar."
+                      },
+                      "detail": {
+                        "default": "",
+                        "description": "Bairro e cidade.",
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "lat": {
+                        "type": "number",
+                        "minimum": -90,
+                        "maximum": 90
+                      },
+                      "lng": {
+                        "type": "number",
+                        "minimum": -180,
+                        "maximum": 180
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "lat",
+                      "lng"
+                    ],
+                    "description": "Endereço da obra (cliente) ou da loja (empresa)."
+                  },
+                  "business": {
+                    "description": "Obrigatório quando role = business.",
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 80
+                      },
+                      "category": {
+                        "$ref": "#/components/schemas/Category"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "category"
+                    ]
+                  },
+                  "ticket": {
+                    "type": "string",
+                    "minLength": 20,
+                    "maxLength": 100
+                  },
+                  "email": {
+                    "description": "Opcional, usado em pagamentos e recibos.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "role",
+                  "name",
+                  "address",
+                  "ticket"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Conta logada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Conta da sessão atual",
+        "operationId": "getApiAuthMe",
+        "description": "Sessão opcional.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Conta logada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sair",
+        "operationId": "postApiAuthLogout",
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "Sessão encerrada"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/password/forgot": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Pedir link para criar nova senha",
+        "operationId": "postApiAuthPasswordForgot",
+        "description": "Sempre responde 202, exista ou não a conta, para não revelar e-mails cadastrados. O link leva a APP_URL/?reset=TOKEN e vale 30 minutos. Sem SMTP configurado, em desenvolvimento o e-mail aparece no terminal da API.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Pedido recebido"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/password/reset": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Criar nova senha com o link do e-mail",
+        "operationId": "postApiAuthPasswordReset",
+        "description": "Troca a senha, encerra as outras sessões e já entra na conta.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 20,
+                    "maxLength": 100
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "token",
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conta logada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/password": {
+      "post": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Trocar ou criar senha",
+        "operationId": "postApiMePassword",
+        "description": "Contas com senha precisam enviar a atual. Contas criadas pelo celular podem criar uma senha para entrar também com e-mail.\n\nRequer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "current": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Senha salva"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me": {
+      "patch": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Editar perfil",
+        "operationId": "patchApiMe",
+        "description": "Envie só os campos que mudaram. Para trocar o celular use /me/phone/start.\n\nRequer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 80
+                  },
+                  "email": {
+                    "description": "null remove o e-mail (só se a conta também entra pelo celular).",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "cpf": {
+                    "description": "Usado como documento do pagador no Mercado Pago.",
+                    "anyOf": [
+                      {
+                        "description": "CPF, com ou sem pontuação.",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "photo": {
+                    "description": "URL devolvida por /uploads.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "prefs": {
+                    "type": "object",
+                    "properties": {
+                      "orders": {
+                        "type": "boolean"
+                      },
+                      "promos": {
+                        "type": "boolean"
+                      },
+                      "sounds": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "tipDismissed": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conta atualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/phone/start": {
+      "post": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Enviar código para um novo celular",
+        "operationId": "postApiMePhoneStart",
+        "description": "Requer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone": {
+                    "description": "Celular com DDD (11 dígitos). Pontuação e +55 são aceitos.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "phone"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Código enviado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "resendIn": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "resendIn"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/phone/verify": {
+      "post": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Confirmar o novo celular",
+        "operationId": "postApiMePhoneVerify",
+        "description": "Requer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone": {
+                    "description": "Celular com DDD (11 dígitos). Pontuação e +55 são aceitos.",
+                    "type": "string"
+                  },
+                  "code": {
+                    "type": "string",
+                    "pattern": "^\\d{6}$",
+                    "description": "Código de 6 dígitos recebido por SMS."
+                  }
+                },
+                "required": [
+                  "phone",
+                  "code"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conta atualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/phone": {
+      "delete": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Remover celular",
+        "operationId": "deleteApiMePhone",
+        "description": "Só para contas que também entram com e-mail e senha.\n\nRequer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conta atualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/addresses": {
+      "post": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Salvar endereço e usar agora",
+        "operationId": "postApiMeAddresses",
+        "description": "Se o endereço já está salvo, só vira o endereço atual.\n\nRequer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120,
+                    "description": "Rua e número, ou nome do lugar."
+                  },
+                  "detail": {
+                    "default": "",
+                    "description": "Bairro e cidade.",
+                    "type": "string",
+                    "maxLength": 160
+                  },
+                  "lat": {
+                    "type": "number",
+                    "minimum": -90,
+                    "maximum": 90
+                  },
+                  "lng": {
+                    "type": "number",
+                    "minimum": -180,
+                    "maximum": 180
+                  }
+                },
+                "required": [
+                  "label",
+                  "lat",
+                  "lng"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conta atualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/addresses/active": {
+      "put": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Escolher o endereço atual",
+        "operationId": "putApiMeAddressesActive",
+        "description": "Requer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conta atualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/addresses/{id}": {
+      "delete": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Apagar endereço",
+        "operationId": "deleteApiMeAddressesId",
+        "description": "Se era o atual, o mais recente vira o atual.\n\nRequer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conta atualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/favorites": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Equipamentos e lojas salvos",
+        "operationId": "getApiMeFavorites",
+        "description": "Requer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Salvos, do mais recente ao mais antigo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "item": {
+                            "$ref": "#/components/schemas/Item"
+                          },
+                          "business": {
+                            "$ref": "#/components/schemas/Business"
+                          }
+                        },
+                        "required": [
+                          "item",
+                          "business"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "businesses": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Business"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "businesses"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/favorites/{kind}/{id}": {
+      "put": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Salvar equipamento ou loja",
+        "operationId": "putApiMeFavoritesKindId",
+        "description": "Requer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "item",
+                "business"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Salvo"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Tirar dos salvos",
+        "operationId": "deleteApiMeFavoritesKindId",
+        "description": "Requer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "item",
+                "business"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removido"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/searches": {
+      "post": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Guardar busca recente",
+        "operationId": "postApiMeSearches",
+        "description": "Requer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Buscas recentes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "recentSearches": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "recentSearches"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Limpar buscas recentes",
+        "operationId": "deleteApiMeSearches",
+        "description": "Requer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Limpo"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/explore": {
+      "get": {
+        "tags": [
+          "Explore"
+        ],
+        "summary": "Lojas e equipamentos perto de um endereço",
+        "operationId": "getApiExplore",
+        "description": "Lojas com pelo menos um equipamento cadastrado, da mais perto para a mais longe (até 100), e todos os equipamentos delas.\n\nSessão opcional.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "description": "Latitude do endereço da obra.",
+            "schema": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "required": true,
+            "description": "Longitude do endereço da obra.",
+            "schema": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            }
+          },
+          {
+            "name": "radiusKm",
+            "in": "query",
+            "required": false,
+            "description": "Raio da busca em km (padrão 40).",
+            "schema": {
+              "default": 40,
+              "type": "number",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado da região",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "businesses": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Business"
+                      }
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Item"
+                      }
+                    }
+                  },
+                  "required": [
+                    "businesses",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "get": {
+        "tags": [
+          "Explore"
+        ],
+        "summary": "Buscar equipamentos perto de um endereço",
+        "operationId": "getApiSearch",
+        "description": "Busca por nome, descrição, destaques, categoria ou nome da loja, sem diferenciar acentos. Disponíveis vêm primeiro.\n\nSessão opcional.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "description": "Latitude do endereço da obra.",
+            "schema": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            }
+          },
+          {
+            "name": "lng",
+            "in": "query",
+            "required": true,
+            "description": "Longitude do endereço da obra.",
+            "schema": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            }
+          },
+          {
+            "name": "radiusKm",
+            "in": "query",
+            "required": false,
+            "description": "Raio da busca em km (padrão 40).",
+            "schema": {
+              "default": 40,
+              "type": "number",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Texto livre, como betoneira ou andaime.",
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Category"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "near",
+              "type": "string",
+              "enum": [
+                "near",
+                "price",
+                "rating"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Até 100 resultados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "item": {
+                            "$ref": "#/components/schemas/Item"
+                          },
+                          "business": {
+                            "$ref": "#/components/schemas/Business"
+                          }
+                        },
+                        "required": [
+                          "item",
+                          "business"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "results"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/businesses/{id}": {
+      "get": {
+        "tags": [
+          "Explore"
+        ],
+        "summary": "Página da loja",
+        "operationId": "getApiBusinessesId",
+        "description": "Sessão opcional.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Loja, estoque e avaliações",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "business": {
+                      "$ref": "#/components/schemas/Business"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Item"
+                      }
+                    },
+                    "reviews": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Review"
+                      }
+                    }
+                  },
+                  "required": [
+                    "business",
+                    "items",
+                    "reviews"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/items/{id}": {
+      "get": {
+        "tags": [
+          "Explore"
+        ],
+        "summary": "Página do equipamento",
+        "operationId": "getApiItemsId",
+        "description": "Sessão opcional.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Equipamento e loja",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "$ref": "#/components/schemas/Item"
+                    },
+                    "business": {
+                      "$ref": "#/components/schemas/Business"
+                    }
+                  },
+                  "required": [
+                    "item",
+                    "business"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/my/business": {
+      "patch": {
+        "tags": [
+          "My business"
+        ],
+        "summary": "Editar a loja",
+        "operationId": "patchApiMyBusiness",
+        "description": "Envie só os campos que mudaram.\n\nRequer sessão de conta de empresa.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 80
+                  },
+                  "tagline": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "about": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "category": {
+                    "$ref": "#/components/schemas/Category"
+                  },
+                  "cover": {
+                    "type": "string",
+                    "pattern": "^\\/(uploads|img)\\/[\\w./-]+$",
+                    "description": "Caminho devolvido por /uploads, ou uma imagem da galeria em /img."
+                  },
+                  "logo": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\/(uploads|img)\\/[\\w./-]+$",
+                        "description": "Caminho devolvido por /uploads, ou uma imagem da galeria em /img."
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "phone": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120,
+                        "description": "Rua e número, ou nome do lugar."
+                      },
+                      "detail": {
+                        "default": "",
+                        "description": "Bairro e cidade.",
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "lat": {
+                        "type": "number",
+                        "minimum": -90,
+                        "maximum": 90
+                      },
+                      "lng": {
+                        "type": "number",
+                        "minimum": -180,
+                        "maximum": 180
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "opens": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  "closes": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  "deliveryFee": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000000,
+                    "description": "Valor em reais."
+                  },
+                  "radiusKm": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Loja atualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Business"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/my/items": {
+      "get": {
+        "tags": [
+          "My business"
+        ],
+        "summary": "Estoque da loja",
+        "operationId": "getApiMyItems",
+        "description": "Requer sessão de conta de empresa.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Equipamentos, do mais novo ao mais antigo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Item"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "My business"
+        ],
+        "summary": "Cadastrar equipamento",
+        "operationId": "postApiMyItems",
+        "description": "Requer sessão de conta de empresa.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 80
+                  },
+                  "category": {
+                    "$ref": "#/components/schemas/Category"
+                  },
+                  "price": {
+                    "type": "number",
+                    "minimum": 0.01,
+                    "maximum": 1000000,
+                    "description": "Valor em reais."
+                  },
+                  "deposit": {
+                    "default": 0,
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000000,
+                    "description": "Valor em reais."
+                  },
+                  "description": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 240
+                  },
+                  "specs": {
+                    "default": [],
+                    "maxItems": 6,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    }
+                  },
+                  "image": {
+                    "type": "string",
+                    "pattern": "^\\/(uploads|img)\\/[\\w./-]+$",
+                    "description": "Caminho devolvido por /uploads, ou uma imagem da galeria em /img."
+                  },
+                  "quantity": {
+                    "default": 1,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 999
+                  },
+                  "available": {
+                    "default": true,
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "name",
+                  "category",
+                  "price",
+                  "image"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Equipamento criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "item": {
+                      "$ref": "#/components/schemas/Item"
+                    },
+                    "first": {
+                      "type": "boolean",
+                      "description": "true quando é o primeiro equipamento da loja."
+                    }
+                  },
+                  "required": [
+                    "item",
+                    "first"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/my/items/{id}": {
+      "patch": {
+        "tags": [
+          "My business"
+        ],
+        "summary": "Editar equipamento",
+        "operationId": "patchApiMyItemsId",
+        "description": "Envie só os campos que mudaram, por exemplo { available: false } para pausar.\n\nRequer sessão de conta de empresa.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 80
+                  },
+                  "category": {
+                    "$ref": "#/components/schemas/Category"
+                  },
+                  "price": {
+                    "type": "number",
+                    "minimum": 0.01,
+                    "maximum": 1000000,
+                    "description": "Valor em reais."
+                  },
+                  "deposit": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000000,
+                    "description": "Valor em reais."
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 240
+                  },
+                  "specs": {
+                    "maxItems": 6,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 40
+                    }
+                  },
+                  "image": {
+                    "type": "string",
+                    "pattern": "^\\/(uploads|img)\\/[\\w./-]+$",
+                    "description": "Caminho devolvido por /uploads, ou uma imagem da galeria em /img."
+                  },
+                  "quantity": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 999
+                  },
+                  "available": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Equipamento atualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Item"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "My business"
+        ],
+        "summary": "Excluir equipamento",
+        "operationId": "deleteApiMyItemsId",
+        "description": "Sai da loja e da busca na hora. Pedidos antigos continuam mostrando o nome e a foto.\n\nRequer sessão de conta de empresa.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Excluído"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Meus pedidos",
+        "operationId": "getApiOrders",
+        "description": "Cliente: os pedidos que fez. Empresa: os pedidos pagos da sua loja.\n\nRequer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Do mais recente ao mais antigo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Order"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Fazer pedido e pagar",
+        "operationId": "postApiOrders",
+        "description": "Calcula os valores no servidor (aluguel + entrega + taxa de serviço de 5% + caução), confere se o equipamento está livre nas datas e cobra no Mercado Pago. Cartão: aprovado vira pending (vai para a loja); recusado devolve 402 e o pedido não é criado. Pix: o pedido fica awaiting_payment com o QR code em payment.pix por 30 minutos e anda sozinho quando o pagamento cai.\n\nRequer sessão de conta de cliente.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "itemId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "start": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                    "description": "Primeiro dia, YYYY-MM-DD, de hoje até 60 dias."
+                  },
+                  "days": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "delivery",
+                      "pickup"
+                    ]
+                  },
+                  "address": {
+                    "description": "Obrigatório quando mode = delivery.",
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120,
+                        "description": "Rua e número, ou nome do lugar."
+                      },
+                      "detail": {
+                        "default": "",
+                        "description": "Bairro e cidade.",
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "lat": {
+                        "type": "number",
+                        "minimum": -90,
+                        "maximum": 90
+                      },
+                      "lng": {
+                        "type": "number",
+                        "minimum": -180,
+                        "maximum": 180
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "lat",
+                      "lng"
+                    ]
+                  },
+                  "payment": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "method": {
+                            "type": "string",
+                            "const": "card"
+                          },
+                          "token": {
+                            "type": "string",
+                            "minLength": 8,
+                            "maxLength": 200,
+                            "description": "Token criado pelo MercadoPago.js (mp.fields.createCardToken). Vale uma vez."
+                          },
+                          "paymentMethodId": {
+                            "type": "string",
+                            "minLength": 2,
+                            "maxLength": 40,
+                            "description": "Ex.: master, visa. Vem de /payments/installments."
+                          },
+                          "issuerId": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 40
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "installments": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 12
+                          },
+                          "savedCardId": {
+                            "description": "Id do cartão salvo quando o token foi criado com createCardToken({ cardId }).",
+                            "type": "string",
+                            "format": "uuid"
+                          }
+                        },
+                        "required": [
+                          "method",
+                          "token",
+                          "paymentMethodId",
+                          "installments"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "method": {
+                            "type": "string",
+                            "const": "pix"
+                          }
+                        },
+                        "required": [
+                          "method"
+                        ]
+                      }
+                    ]
+                  },
+                  "payer": {
+                    "description": "Completa o perfil quando ainda não tem e-mail ou CPF.",
+                    "type": "object",
+                    "properties": {
+                      "email": {
+                        "type": "string"
+                      },
+                      "cpf": {
+                        "description": "CPF, com ou sem pontuação.",
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "itemId",
+                  "start",
+                  "days",
+                  "mode",
+                  "payment"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Pedido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Pagamento recusado (error.code = payment_rejected)"
+          },
+          "409": {
+            "description": "Equipamento indisponível nessas datas"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{id}": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Detalhes do pedido",
+        "operationId": "getApiOrdersId",
+        "description": "Requer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pedido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{id}/status": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Mudar a etapa do pedido",
+        "operationId": "postApiOrdersIdStatus",
+        "description": "Empresa: pending → accepted | declined; accepted → on_the_way | cancelled; on_the_way → delivered; delivered → returned. Cliente: awaiting_payment | pending | accepted → cancelled. Recusar ou cancelar um pedido pago estorna tudo; returned estorna a caução.\n\nRequer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "$ref": "#/components/schemas/OrderStatus"
+                  }
+                },
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pedido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Mudança não permitida a partir da etapa atual"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{id}/payment/refresh": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Conferir se o Pix foi pago",
+        "operationId": "postApiOrdersIdPaymentRefresh",
+        "description": "Consulta o Mercado Pago na hora. O servidor também confere sozinho a cada 30 segundos e pelo webhook.\n\nRequer sessão de conta de cliente.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pedido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Order"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{id}/messages": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Mensagens do pedido",
+        "operationId": "getApiOrdersIdMessages",
+        "description": "Requer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Da mais antiga à mais nova",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Message"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Enviar mensagem",
+        "operationId": "postApiOrdersIdMessages",
+        "description": "Chega na hora para o outro lado pelo /events.\n\nRequer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "text"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Mensagem enviada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{id}/read": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Marcar mensagens como lidas",
+        "operationId": "postApiOrdersIdRead",
+        "description": "Requer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Lidas"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orders/{id}/review": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Avaliar a loja",
+        "operationId": "postApiOrdersIdReview",
+        "description": "Uma avaliação por pedido, depois da devolução.\n\nRequer sessão de conta de cliente.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "stars": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 5
+                  },
+                  "text": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "stars"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Avaliação publicada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Review"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payment-methods": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Cartões salvos",
+        "operationId": "getApiPaymentMethods",
+        "description": "Requer sessão de conta de cliente.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cartões salvos, o padrão primeiro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentMethod"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Salvar cartão",
+        "operationId": "postApiPaymentMethods",
+        "description": "Recebe o token criado pelo MercadoPago.js (campos seguros) e guarda o cartão no cliente do Mercado Pago. O número completo e o código de segurança nunca passam pelo nosso servidor.\n\nRequer sessão de conta de cliente.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Cartões salvos, o padrão primeiro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentMethod"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payment-methods/{id}": {
+      "patch": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Tornar cartão padrão",
+        "operationId": "patchApiPaymentMethodsId",
+        "description": "Requer sessão de conta de cliente.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isDefault": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "isDefault"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cartões salvos, o padrão primeiro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentMethod"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Remover cartão",
+        "operationId": "deleteApiPaymentMethodsId",
+        "description": "Apaga o cartão também do Mercado Pago.\n\nRequer sessão de conta de cliente.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cartões salvos, o padrão primeiro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentMethod"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/installments": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Opções de parcelamento",
+        "operationId": "getApiPaymentsInstallments",
+        "description": "Parcelas de 1x a 12x para o valor e o cartão (pelos 6 a 8 primeiros dígitos), com juros quando houver.\n\nRequer sessão de conta de cliente.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "amount",
+            "in": "query",
+            "required": true,
+            "description": "Valor total em reais.",
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "bin",
+            "in": "query",
+            "required": true,
+            "description": "6 a 8 primeiros dígitos do cartão.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{6,8}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bandeira, banco e parcelas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Installments"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/webhooks/mercadopago": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Notificação do Mercado Pago",
+        "operationId": "postApiWebhooksMercadopago",
+        "description": "Configure no painel do Mercado Pago como PUBLIC_URL/api/webhooks/mercadopago (tópico Pagamentos). Com MP_WEBHOOK_SECRET, a assinatura x-signature é conferida. O status sempre é lido de novo na API do Mercado Pago, então o corpo da notificação não altera nada sozinho.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Recebido"
+          },
+          "401": {
+            "description": "Assinatura inválida"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/uploads": {
+      "post": {
+        "tags": [
+          "Uploads"
+        ],
+        "summary": "Enviar foto",
+        "operationId": "postApiUploads",
+        "description": "multipart/form-data com o campo file. A foto é girada conforme o EXIF, sem metadados, redimensionada e salva como WebP. avatar e logo: 512×512; cover: 1600×900; item: até 1200 px.\n\nRequer sessão.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "description": "Onde a foto vai ser usada.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "avatar",
+                "logo",
+                "cover",
+                "item"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Imagem JPG, PNG, WebP ou GIF até 10 MB."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Foto salva",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "description": "Caminho público, como /uploads/ID.webp"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

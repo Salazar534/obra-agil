@@ -1,0 +1,10 @@
+node_modules
+.postgres
+dist
+.env
+.env.*
+!.env.example
+server/storage
+.git
+docs/screenshots
+mobile
