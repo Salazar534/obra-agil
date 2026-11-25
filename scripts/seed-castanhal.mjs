@@ -9,7 +9,7 @@ try {
   // .env is optional here; PORT falls back to 3001.
 }
 
-const base = `http://127.0.0.1:${process.env.PORT ?? 3001}/api`;
+const base = process.env.SEED_API ?? `http://127.0.0.1:${process.env.PORT ?? 3001}/api`;
 const PASSWORD = "Castanhal#2026";
 const img = (key) => `/img/eq/${key}.webp`;
 

@@ -66,7 +66,7 @@ export function ItemCard({ listing, onClick }: { listing: Listing; onClick: () =
 
 export function BusinessCard({ business, km, onClick }: { business: Business; km: number; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className={`w-[282px] shrink-0 snap-start overflow-hidden rounded-[26px] bg-card text-left ${press}`}>
+    <button type="button" onClick={onClick} className={`w-[282px] shrink-0 snap-start overflow-hidden rounded-[26px] bg-card text-left lg:w-full ${press}`}>
       <span className="relative block">
         <Img src={business.cover} alt="" className="aspect-[16/9] w-full" />
         <span className="glass absolute top-3 left-3 rounded-full px-2.5 py-1 type-footnote font-semibold">{formatKm(km)}</span>

@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Obra Ágil API",
+    "title": "Obi Ágil API",
     "version": "1.0.0",
-    "description": "API do Obra Ágil, marketplace de aluguel de equipamentos de obra. Todas as rotas ficam em /api. A sessão é um cookie httpOnly (oa_session) criado no cadastro ou na entrada. Valores em reais (número com 2 casas). Datas de calendário em YYYY-MM-DD e instantes em milissegundos desde 1970 (epoch)."
+    "description": "API do Obi Ágil, marketplace de aluguel de equipamentos de obra. Todas as rotas ficam em /api. A sessão é um cookie httpOnly (oa_session) criado no cadastro ou na entrada. Valores em reais (número com 2 casas). Datas de calendário em YYYY-MM-DD e instantes em milissegundos desde 1970 (epoch)."
   },
   "servers": [
     {
@@ -418,6 +418,10 @@
           "reviewCount": {
             "type": "integer"
           },
+          "mercadoPagoConnected": {
+            "type": "boolean",
+            "description": "A loja autorizou o Mercado Pago e recebe os pagamentos na própria conta."
+          },
           "createdAt": {
             "type": "integer"
           },
@@ -443,6 +447,7 @@
           "radiusKm",
           "rating",
           "reviewCount",
+          "mercadoPagoConnected",
           "createdAt"
         ],
         "additionalProperties": false,
@@ -807,7 +812,7 @@
           "declined",
           "cancelled"
         ],
-        "description": "awaiting_payment: Pix gerado, esperando pagamento. pending: pago, esperando a loja. accepted: loja aceitou. on_the_way: saiu para entrega ou pronto para retirada. delivered: com o cliente. returned: devolvido (caução estornada). declined: loja recusou (estornado). cancelled: cancelado (estornado se pago)."
+        "description": "awaiting_payment: Pix, boleto, lotérica ou saldo ainda não confirmados. pending: pago, esperando a loja. accepted: loja aceitou. on_the_way: saiu para entrega ou pronto para retirada. delivered: com o cliente. returned: devolvido (caução estornada). declined: loja recusou (estornado). cancelled: cancelado (estornado se pago)."
       },
       "OrderPayment": {
         "type": "object",
@@ -816,12 +821,15 @@
             "type": "string",
             "enum": [
               "card",
-              "pix"
+              "pix",
+              "boleto",
+              "pec",
+              "account_money"
             ]
           },
           "label": {
             "type": "string",
-            "description": "Ex.: Mastercard •••• 6351 · 3x"
+            "description": "Ex.: Mastercard •••• 6351 · 3x, Pix, Boleto, Lotérica, Saldo Mercado Pago."
           },
           "installments": {
             "type": "integer"
@@ -876,6 +884,49 @@
               }
             ],
             "description": "Presente enquanto o Pix espera pagamento."
+          },
+          "ticket": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "barcode": {
+                    "description": "Linha digitável do boleto ou código da lotérica.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "url": {
+                    "description": "Página do boleto ou da confirmação no Mercado Pago.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "expiresAt": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "barcode",
+                  "url",
+                  "expiresAt"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Presente enquanto boleto, lotérica ou saldo Mercado Pago esperam pagamento."
           }
         },
         "required": [
@@ -885,7 +936,8 @@
           "status",
           "detail",
           "refunded",
-          "pix"
+          "pix",
+          "ticket"
         ],
         "additionalProperties": false
       },
@@ -3066,6 +3118,104 @@
         }
       }
     },
+    "/api/my/business/mercadopago": {
+      "post": {
+        "tags": [
+          "My business"
+        ],
+        "summary": "Conectar o Mercado Pago da loja",
+        "operationId": "postApiMyBusinessMercadopago",
+        "description": "Devolve a URL de autorização. A dona da loja entra na conta Mercado Pago que deve receber os aluguéis. Depois do aceite, o Mercado Pago volta para /api/mercadopago/callback e os pagamentos seguintes caem nessa conta. A taxa de serviço fica com a plataforma.\n\nRequer sessão de conta de empresa.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "URL de autorização",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mercadopago/callback": {
+      "get": {
+        "tags": [
+          "My business"
+        ],
+        "summary": "Retorno da autorização do Mercado Pago",
+        "operationId": "getApiMercadopagoCallback",
+        "description": "O Mercado Pago redireciona o navegador para cá com code e state. Não chame esta rota direto.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Volta para o app"
+          },
+          "default": {
+            "description": "Erro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/my/items": {
       "get": {
         "tags": [
@@ -3414,7 +3564,7 @@
         ],
         "summary": "Fazer pedido e pagar",
         "operationId": "postApiOrders",
-        "description": "Calcula os valores no servidor (aluguel + entrega + taxa de serviço de 5% + caução), confere se o equipamento está livre nas datas e cobra no Mercado Pago. Cartão: aprovado vira pending (vai para a loja); recusado devolve 402 e o pedido não é criado. Pix: o pedido fica awaiting_payment com o QR code em payment.pix por 30 minutos e anda sozinho quando o pagamento cai.\n\nRequer sessão de conta de cliente.",
+        "description": "Calcula os valores no servidor (aluguel + entrega + taxa de serviço de 5% + caução), confere se o equipamento está livre nas datas e cobra no Mercado Pago. Cartão de crédito ou débito e saldo Mercado Pago: aprovado vira pending (vai para a loja); recusado devolve 402 e o pedido não é criado. Pix fica awaiting_payment com o QR code em payment.pix por 30 minutos. Boleto e lotérica ficam awaiting_payment com payment.ticket por 3 dias.\n\nRequer sessão de conta de cliente.",
         "security": [
           {
             "session": []
@@ -3483,7 +3633,7 @@
                     ]
                   },
                   "payment": {
-                    "oneOf": [
+                    "anyOf": [
                       {
                         "type": "object",
                         "properties": {
@@ -3501,7 +3651,7 @@
                             "type": "string",
                             "minLength": 2,
                             "maxLength": 40,
-                            "description": "Ex.: master, visa. Vem de /payments/installments."
+                            "description": "Ex.: master, visa, debvisa. Vem de /payments/installments."
                           },
                           "issuerId": {
                             "anyOf": [
@@ -3537,7 +3687,13 @@
                         "properties": {
                           "method": {
                             "type": "string",
-                            "const": "pix"
+                            "enum": [
+                              "pix",
+                              "boleto",
+                              "pec",
+                              "account_money"
+                            ],
+                            "description": "Pix, boleto Bradesco, lotérica ou saldo Mercado Pago."
                           }
                         },
                         "required": [
@@ -4221,7 +4377,7 @@
         ],
         "summary": "Opções de parcelamento",
         "operationId": "getApiPaymentsInstallments",
-        "description": "Parcelas de 1x a 12x para o valor e o cartão (pelos 6 a 8 primeiros dígitos), com juros quando houver.\n\nRequer sessão de conta de cliente.",
+        "description": "Parcelas de crédito (1x a 12x) ou débito à vista, pelo BIN do cartão.\n\nRequer sessão de conta de cliente.",
         "security": [
           {
             "session": []
@@ -4247,6 +4403,19 @@
             "schema": {
               "type": "string",
               "pattern": "^\\d{6,8}$"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "credit (padrão) ou debit.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "credit",
+                "debit"
+              ]
             }
           }
         ],

@@ -22,7 +22,7 @@ export function Mascot({
   mood = "idle",
   size = 120,
   className = "",
-  label = "Obi, o mascote do Obra Ágil",
+  label = "Obi, o mascote da Obi Ágil",
 }: {
   mood?: MascotMood;
   size?: number;

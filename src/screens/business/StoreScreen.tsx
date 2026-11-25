@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Camera, Eye, MapPin, Star } from "lucide-react";
+import { Camera, Eye, MapPin, Star, Wallet } from "lucide-react";
 import { errorMessage } from "../../lib/api.ts";
-import { categories, coverLibrary, type CategoryId } from "../../lib/catalog.ts";
+import { categories, coverLibrary } from "../../lib/catalog.ts";
 import { chime } from "../../lib/feedback.ts";
 import { digits, formatPhone, isValidPhone } from "../../lib/format.ts";
 import { useNav } from "../../lib/nav.tsx";
@@ -18,7 +18,7 @@ type Form = {
   name: string;
   tagline: string;
   about: string;
-  category: CategoryId;
+  category: string;
   phone: string;
   deliveryFee: string;
   radiusKm: number;
@@ -27,6 +27,7 @@ type Form = {
   address: Address;
   cover: string;
   logo: string | null;
+  document: string;
 };
 
 function toForm(b: Business): Form {
@@ -43,6 +44,7 @@ function toForm(b: Business): Form {
     address: b.address,
     cover: b.cover,
     logo: b.logo,
+    document: b.document ?? "",
   };
 }
 
@@ -54,6 +56,7 @@ export function StoreScreen() {
   const [addressOpen, setAddressOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [connecting, setConnecting] = useState(false);
 
   if (!business || !form) {
     return (
@@ -86,6 +89,7 @@ export function StoreScreen() {
         address: form.address,
         cover: form.cover,
         logo: form.logo,
+        document: form.document,
       });
       setForm(toForm(updated));
       chime("success");
@@ -130,6 +134,34 @@ export function StoreScreen() {
         </div>
       </section>
 
+      <Group title="Recebimentos" footer={business.mercadoPagoConnected ? "Os aluguéis caem na conta Mercado Pago conectada. A taxa de serviço fica com a Obi Ágil. O saque é feito no Mercado Pago." : "Conecte a conta que deve receber os aluguéis. Sem isso, o pagamento fica na conta da plataforma."}>
+        <Row icon={Wallet} tone="green" title="Balanço" subtitle="Disponível, a receber e estornos" chevron onClick={() => nav.push("finance")} />
+        <Row
+          icon={Wallet}
+          tone={business.mercadoPagoConnected ? "green" : "orange"}
+          title="Mercado Pago"
+          subtitle={business.mercadoPagoConnected ? "Conta conectada" : "Conectar para receber"}
+          trailing={
+            business.mercadoPagoConnected ? null : (
+              <Button
+                variant="tinted"
+                size="sm"
+                loading={connecting}
+                onClick={() => {
+                  setConnecting(true);
+                  void actions.connectMercadoPago().catch((error) => {
+                    setConnecting(false);
+                    toast(errorMessage(error), "error");
+                  });
+                }}
+              >
+                Conectar
+              </Button>
+            )
+          }
+        />
+      </Group>
+
       <Group>
         <Row icon={Eye} tone="blue" title="Ver como cliente" chevron onClick={() => nav.push("business", { id: business.id })} />
         <Row icon={Star} tone="orange" title="Avaliações" value={String(business.reviewCount)} chevron onClick={() => nav.push("business", { id: business.id, tab: "reviews" })} />
@@ -137,8 +169,23 @@ export function StoreScreen() {
 
       <Group title="Informações">
         <FieldRow label="Nome" value={form.name} maxLength={80} onChange={(e) => set({ name: e.target.value })} invalid={form.name.trim().length < 3} />
+        <FieldRow
+          label={business.offers === "service" ? "CPF ou CNPJ" : "CNPJ"}
+          value={form.document}
+          inputMode="numeric"
+          placeholder={business.offers === "service" ? "Documento de quem presta o serviço" : "CNPJ ativo na Receita"}
+          onChange={(e) => set({ document: e.target.value })}
+        />
         <FieldRow label="Slogan" value={form.tagline} maxLength={80} placeholder="Ex.: Entrega no mesmo dia" onChange={(e) => set({ tagline: e.target.value })} />
-        <SelectRow label="Categoria" value={form.category} options={categories.map((c) => ({ value: c.id, label: c.label }))} onChange={(value) => set({ category: value as CategoryId })} />
+        <SelectRow
+          label="Categoria"
+          value={form.category}
+          options={(categories.some((c) => c.id === form.category) ? categories : [{ id: form.category, label: form.category }, ...categories]).map((c) => ({
+            value: c.id,
+            label: c.label,
+          }))}
+          onChange={(value) => set({ category: value })}
+        />
         <FieldRow
           label="Telefone"
           value={formatPhone(form.phone)}
@@ -163,7 +210,7 @@ export function StoreScreen() {
 
       {dirty ? <div className="h-20" aria-hidden="true" /> : null}
       {dirty ? (
-        <div className="fixed inset-x-0 z-30 px-3" style={{ bottom: "calc(max(10px, var(--safe-bottom)) + 74px)" }}>
+        <div className="fixed inset-x-0 z-30 px-3 lg:px-8" style={{ bottom: "calc(max(10px, var(--safe-bottom)) + var(--dock))" }}>
           <div className="glass anim-rise flex items-center gap-3 rounded-full p-2 pl-5">
             <p className="min-w-0 flex-1 truncate type-subhead font-semibold">Alterações não salvas</p>
             <Button size="sm" variant="gray" onClick={() => setForm(toForm(business))}>

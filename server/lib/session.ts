@@ -11,8 +11,12 @@ export type SessionUser = { id: string; role: Role; sessionId: string };
 
 const cache = new WeakMap<Request, SessionUser | null>();
 
-function cookieOptions(req: Request, expires: Date): CookieOptions {
-  return { httpOnly: true, sameSite: "lax", secure: req.secure, path: "/", expires };
+function cookieOptions(req: Request, expires?: Date): CookieOptions {
+  const host = req.hostname.toLowerCase();
+  const parent = config.cookieDomain;
+  const bare = parent?.slice(1) ?? "";
+  const shared = Boolean(parent && (host === bare || host.endsWith(`.${bare}`)));
+  return { httpOnly: true, sameSite: "lax", secure: req.secure, path: "/", ...(expires ? { expires } : {}), ...(shared ? { domain: parent ?? undefined } : {}) };
 }
 
 export async function startSession(req: Request, res: Response, userId: string, db?: Db) {
@@ -54,7 +58,7 @@ export async function endSession(req: Request, res: Response) {
   const user = await readSession(req, res);
   if (user) await exec("delete from sessions where id = $1", [user.sessionId]);
   cache.set(req, null);
-  res.clearCookie(SESSION_COOKIE, { path: "/" });
+  res.clearCookie(SESSION_COOKIE, cookieOptions(req));
 }
 
 export async function endOtherSessions(userId: string, keepSessionId: string | null, db?: Db) {

@@ -213,7 +213,7 @@ export function CvvField({ sdk, paymentMethodId }: { sdk: MercadoPagoSdk; paymen
   return <SecureRow label="Código" id={ids.cvv} />;
 }
 
-export function PaymentsUnavailable({ text = "Os pagamentos com cartão e Pix ainda estão sendo ligados. Tente de novo mais tarde." }: { text?: string }) {
+export function PaymentsUnavailable({ text = "Cartão, Pix, boleto, lotérica e saldo do Mercado Pago ainda estão sendo ligados. Tente de novo mais tarde." }: { text?: string }) {
   return (
     <div className="flex flex-col items-center px-4 py-6 text-center">
       <Mascot mood="think" size={96} />

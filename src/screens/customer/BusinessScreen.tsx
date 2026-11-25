@@ -17,7 +17,7 @@ type Tab = "items" | "about" | "reviews";
 export async function shareLink(title: string) {
   const url = window.location.href;
   if (isNativeShell()) {
-    postNative({ type: "share", title: `${title} no Obra Ágil` });
+    postNative({ type: "share", title: `${title} na Obi Ágil` });
     return;
   }
   try {

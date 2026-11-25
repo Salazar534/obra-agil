@@ -1,12 +1,19 @@
 import { z } from "zod";
 import { many, one, type Db } from "./db/pool.ts";
-import { CATEGORIES, toReais } from "./lib/text.ts";
+import { toReais } from "./lib/text.ts";
 
 /* ---------- Shared inputs ---------- */
 
 export const Id = z.uuid({ error: "Identificador inválido." });
 export const IdParams = z.object({ id: Id });
-export const Category = z.enum(CATEGORIES).meta({ id: "Category", description: "Categoria de equipamento." });
+export const Category = z
+  .string()
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Categoria inválida.")
+  .max(48)
+  .meta({ id: "Category", description: "Identificador da categoria no catálogo." });
+export const Offers = z.enum(["rental", "service", "both"]).meta({ id: "Offers", description: "rental: aluguel. service: serviços. both: os dois." });
+export const ListingKind = z.enum(["product", "service"]);
+export const PriceUnit = z.enum(["hour", "day", "fixed", "quote"]);
 export const Role = z.enum(["customer", "business"]).meta({ id: "Role", description: "customer: quem aluga. business: locadora." });
 export const Phone = z
   .string()
@@ -77,6 +84,9 @@ export const Business = z
     tagline: z.string(),
     about: z.string(),
     category: Category,
+    offers: Offers,
+    personType: z.enum(["pf", "pj"]),
+    document: z.string().nullable(),
     cover: z.string(),
     logo: z.string().nullable(),
     phone: z.string(),
@@ -87,6 +97,7 @@ export const Business = z
     radiusKm: z.number().int(),
     rating: z.number().describe("Média de 0 a 5; 0 quando ainda não há avaliações."),
     reviewCount: z.number().int(),
+    mercadoPagoConnected: z.boolean().describe("A loja autorizou o Mercado Pago e recebe os pagamentos na própria conta."),
     createdAt: z.number().int(),
     distanceKm: z.number().optional().describe("Distância até o ponto da busca."),
   })
@@ -98,7 +109,9 @@ export const Item = z
     businessId: Id,
     name: z.string(),
     category: Category,
-    price: z.number().describe("Preço por dia."),
+    kind: ListingKind,
+    priceUnit: PriceUnit,
+    price: z.number().describe("Preço por dia, por hora, fixo ou a partir de."),
     deposit: z.number().describe("Caução, devolvida no fim do aluguel."),
     description: z.string(),
     specs: z.array(z.string()),
@@ -115,7 +128,7 @@ export const OrderStatus = z
   .meta({
     id: "OrderStatus",
     description:
-      "awaiting_payment: Pix gerado, esperando pagamento. pending: pago, esperando a loja. accepted: loja aceitou. " +
+      "awaiting_payment: Pix, boleto, lotérica ou saldo ainda não confirmados. pending: pago, esperando a loja. accepted: loja aceitou. " +
       "on_the_way: saiu para entrega ou pronto para retirada. delivered: com o cliente. returned: devolvido (caução estornada). " +
       "declined: loja recusou (estornado). cancelled: cancelado (estornado se pago).",
   });
@@ -126,8 +139,8 @@ export const PaymentStatus = z
 
 export const OrderPayment = z
   .object({
-    method: z.enum(["card", "pix"]),
-    label: z.string().describe("Ex.: Mastercard •••• 6351 · 3x"),
+    method: z.enum(["card", "pix", "boleto", "pec", "account_money"]),
+    label: z.string().describe("Ex.: Mastercard •••• 6351 · 3x, Pix, Boleto, Lotérica, Saldo Mercado Pago."),
     installments: z.number().int(),
     status: PaymentStatus,
     detail: z.string().nullable().describe("Motivo informado pelo Mercado Pago."),
@@ -141,6 +154,14 @@ export const OrderPayment = z
       })
       .nullable()
       .describe("Presente enquanto o Pix espera pagamento."),
+    ticket: z
+      .object({
+        barcode: z.string().nullable().describe("Linha digitável do boleto ou código da lotérica."),
+        url: z.string().nullable().describe("Página do boleto ou da confirmação no Mercado Pago."),
+        expiresAt: z.number().int().nullable(),
+      })
+      .nullable()
+      .describe("Presente enquanto boleto, lotérica ou saldo Mercado Pago esperam pagamento."),
   })
   .meta({ id: "OrderPayment" });
 
@@ -239,6 +260,9 @@ export type BusinessRow = {
   tagline: string;
   about: string;
   category: z.output<typeof Category>;
+  offers: z.output<typeof Offers>;
+  person_type: "pf" | "pj";
+  document: string | null;
   cover_url: string;
   logo_url: string | null;
   phone: string;
@@ -252,6 +276,11 @@ export type BusinessRow = {
   radius_km: number;
   rating_sum: number;
   rating_count: number;
+  mp_user_id: string | null;
+  mp_access_token: string | null;
+  mp_refresh_token: string | null;
+  mp_public_key: string | null;
+  mp_expires_at: Date | null;
   created_at: Date;
   distance_km?: number;
 };
@@ -261,6 +290,9 @@ export type ItemRow = {
   business_id: string;
   name: string;
   category: z.output<typeof Category>;
+  kind: z.output<typeof ListingKind>;
+  price_unit: z.output<typeof PriceUnit>;
+  template_id: string | null;
   price_cents: number;
   deposit_cents: number;
   description: string;
@@ -294,7 +326,7 @@ export type OrderRow = {
   deposit_cents: number;
   total_cents: number;
   status: z.output<typeof OrderStatus>;
-  payment_method: "card" | "pix";
+  payment_method: "card" | "pix" | "boleto" | "pec" | "account_money";
   payment_label: string;
   installments: number;
   payment_status: z.output<typeof PaymentStatus>;
@@ -345,6 +377,9 @@ export function serializeBusiness(row: BusinessRow): BusinessOut {
     tagline: row.tagline,
     about: row.about,
     category: row.category,
+    offers: row.offers,
+    personType: row.person_type,
+    document: row.document,
     cover: row.cover_url,
     logo: row.logo_url,
     phone: row.phone,
@@ -355,6 +390,7 @@ export function serializeBusiness(row: BusinessRow): BusinessOut {
     radiusKm: row.radius_km,
     rating: row.rating_count ? Math.round((row.rating_sum / row.rating_count) * 10) / 10 : 0,
     reviewCount: row.rating_count,
+    mercadoPagoConnected: Boolean(row.mp_access_token),
     createdAt: row.created_at.getTime(),
     ...(row.distance_km === undefined ? {} : { distanceKm: Math.round(row.distance_km * 100) / 100 }),
   };
@@ -366,6 +402,8 @@ export function serializeItem(row: ItemRow): ItemOut {
     businessId: row.business_id,
     name: row.name,
     category: row.category,
+    kind: row.kind,
+    priceUnit: row.price_unit,
     price: toReais(row.price_cents),
     deposit: toReais(row.deposit_cents),
     description: row.description,
@@ -379,7 +417,8 @@ export function serializeItem(row: ItemRow): ItemOut {
 }
 
 export function serializeOrder(row: OrderRow): OrderOut {
-  const waitingPix = row.status === "awaiting_payment" && row.pix_qr_code && row.pix_expires_at;
+  const waitingPix = row.payment_method === "pix" && row.status === "awaiting_payment" && row.pix_qr_code && row.pix_expires_at;
+  const waitingTicket = (row.payment_method === "boleto" || row.payment_method === "pec" || row.payment_method === "account_money") && row.status === "awaiting_payment";
   return {
     id: row.id,
     code: `#${row.number}`,
@@ -420,6 +459,9 @@ export function serializeOrder(row: OrderRow): OrderOut {
             ticketUrl: row.pix_ticket_url,
             expiresAt: row.pix_expires_at!.getTime(),
           }
+        : null,
+      ticket: waitingTicket
+        ? { barcode: row.pix_qr_code, url: row.pix_ticket_url, expiresAt: row.pix_expires_at ? row.pix_expires_at.getTime() : null }
         : null,
     },
     reviewed: row.reviewed,

@@ -24,6 +24,7 @@ export const metaRoutes = [
             sms: z.object({ enabled: z.boolean(), mode: z.enum(["twilio", "console", "disabled"]).describe("console: código no terminal da API (desenvolvimento).") }),
             email: z.object({ enabled: z.boolean(), mode: z.enum(["smtp", "console", "disabled"]) }),
             serviceFeeRate: z.number().describe("Taxa de serviço sobre o aluguel (0.05 = 5%)."),
+            apiPage: z.string().nullable().describe("Página da API, só com sessão. Nula em desenvolvimento."),
           })
           .meta({ id: "PublicConfig" }),
       },
@@ -33,6 +34,7 @@ export const metaRoutes = [
       sms: { enabled: smsMode !== "disabled", mode: smsMode },
       email: { enabled: mailMode !== "disabled", mode: mailMode },
       serviceFeeRate: config.serviceFeeRate,
+      apiPage: config.publicUrl,
     }),
   }),
 

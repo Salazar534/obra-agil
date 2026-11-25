@@ -16,6 +16,9 @@ RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY public ./public
+COPY site ./site
+COPY scripts/docker-entry.mjs scripts/serve-web.mjs ./scripts/
 
+ENV NODE_OPTIONS=--experimental-strip-types
 EXPOSE 3001
-CMD ["node", "server/index.ts"]
+CMD ["node", "scripts/docker-entry.mjs"]

@@ -28,7 +28,8 @@ import {
 } from "../models.ts";
 import { publishMessage, publishOrder } from "../services/events.ts";
 import { ACTIVE_STATUSES, applyPayment, changeStatus, paymentLabel, refreshPayment } from "../services/orders.ts";
-import { gateway, GatewayError, rejectionMessage, type GatewayPayment, type Payer } from "../services/payments.ts";
+import { sellerAccessToken } from "../services/mercadopago-oauth.ts";
+import { gateway, GatewayError, offlineLabel, rejectionMessage, type GatewayPayment, type OfflineMethod, type Payer } from "../services/payments.ts";
 import { shortName } from "./explore.ts";
 
 const OrderResponse = { description: "Pedido", schema: Order };
@@ -40,6 +41,12 @@ async function visibleOrder(orderId: string, user: SessionUser) {
   return row;
 }
 
+function expiresAt(method: OfflineMethod) {
+  if (method === "account_money") return null;
+  if (method === "pix") return new Date(Date.now() + 31 * 60_000);
+  return new Date(Date.now() + 3 * 24 * 60 * 60_000);
+}
+
 function gatewayFailure(error: GatewayError) {
   console.error("[payments] Mercado Pago error", error.status, JSON.stringify(error.body));
   if (error.status >= 500) return new HttpError(502, "payment_failed", "Não conseguimos falar com o Mercado Pago. Tente de novo em instantes.");
@@ -49,10 +56,14 @@ function gatewayFailure(error: GatewayError) {
 const CardPayment = z.object({
   method: z.literal("card"),
   token: z.string().min(8).max(200).describe("Token criado pelo MercadoPago.js (mp.fields.createCardToken). Vale uma vez."),
-  paymentMethodId: z.string().min(2).max(40).describe("Ex.: master, visa. Vem de /payments/installments."),
+  paymentMethodId: z.string().min(2).max(40).describe("Ex.: master, visa, debvisa. Vem de /payments/installments."),
   issuerId: z.string().max(40).nullable().optional(),
   installments: z.number().int().min(1).max(12),
   savedCardId: Id.optional().describe("Id do cartão salvo quando o token foi criado com createCardToken({ cardId })."),
+});
+
+const OfflinePayment = z.object({
+  method: z.enum(["pix", "boleto", "pec", "account_money"]).describe("Pix, boleto Bradesco, lotérica ou saldo Mercado Pago."),
 });
 
 export const orderRoutes = [
@@ -88,8 +99,8 @@ export const orderRoutes = [
     summary: "Fazer pedido e pagar",
     description:
       "Calcula os valores no servidor (aluguel + entrega + taxa de serviço de 5% + caução), confere se o equipamento está livre nas datas e cobra no Mercado Pago. " +
-      "Cartão: aprovado vira pending (vai para a loja); recusado devolve 402 e o pedido não é criado. " +
-      "Pix: o pedido fica awaiting_payment com o QR code em payment.pix por 30 minutos e anda sozinho quando o pagamento cai.",
+      "Cartão de crédito ou débito e saldo Mercado Pago: aprovado vira pending (vai para a loja); recusado devolve 402 e o pedido não é criado. " +
+      "Pix fica awaiting_payment com o QR code em payment.pix por 30 minutos. Boleto e lotérica ficam awaiting_payment com payment.ticket por 3 dias.",
     auth: "customer",
     body: z.object({
       itemId: Id,
@@ -97,7 +108,7 @@ export const orderRoutes = [
       days: z.number().int().min(1).max(30),
       mode: z.enum(["delivery", "pickup"]),
       address: AddressInput.optional().describe("Obrigatório quando mode = delivery."),
-      payment: z.discriminatedUnion("method", [CardPayment, z.object({ method: z.literal("pix") })]),
+      payment: z.union([CardPayment, OfflinePayment]),
       payer: z
         .object({ email: Email.optional(), cpf: Cpf.optional() })
         .optional()
@@ -130,6 +141,9 @@ export const orderRoutes = [
         me.cpf = body.payer.cpf;
       }
       if (!me.email) throw badRequest("email_required", "Informe um e-mail para receber o comprovante do pagamento.");
+      if (body.payment.method !== "card" && body.payment.method !== "pix" && !me.cpf) {
+        throw badRequest("invalid_cpf", "Informe o CPF para pagar com boleto, lotérica ou saldo do Mercado Pago.");
+      }
 
       const item = await one<ItemRow>("select * from items where id = $1 and deleted_at is null", [body.itemId]);
       if (!item) throw notFound("Equipamento não encontrado. Ele pode ter sido removido pela loja.");
@@ -196,7 +210,7 @@ export const orderRoutes = [
             deposit,
             total,
             body.payment.method,
-            body.payment.method === "pix" ? "Pix" : savedCard ? `${savedCard.brand} •••• ${savedCard.last_four}` : "Cartão de crédito",
+            body.payment.method === "card" ? (savedCard ? `${savedCard.brand} •••• ${savedCard.last_four}` : "Cartão") : offlineLabel(body.payment.method),
             installments,
           ],
           db,
@@ -208,7 +222,16 @@ export const orderRoutes = [
       const [firstName, ...rest] = me.name.trim().split(/\s+/);
       const payer: Payer = { email: me.email, firstName, lastName: rest.join(" "), cpf: me.cpf, customerId: savedCard ? me.mp_customer_id : null };
       const description = `Aluguel: ${item.name} (${body.days} ${body.days === 1 ? "dia" : "dias"})`;
-      const common = { amount: total / 100, description, orderId, payer, item: { id: item.id, title: item.name } };
+      const sellerToken = config.paymentsDriver === "fake" ? null : await sellerAccessToken(business);
+      const common = {
+        amount: total / 100,
+        description,
+        orderId,
+        payer,
+        item: { id: item.id, title: item.name },
+        sellerToken,
+        applicationFee: sellerToken ? serviceFee / 100 : 0,
+      };
 
       let payment: GatewayPayment;
       try {
@@ -221,7 +244,11 @@ export const orderRoutes = [
                 issuerId: savedCard?.issuer_id ?? body.payment.issuerId ?? null,
                 installments,
               })
-            : await gateway.createPixPayment({ ...common, expiresAt: new Date(Date.now() + 31 * 60_000) });
+            : await gateway.createOfflinePayment({
+                ...common,
+                method: body.payment.method,
+                expiresAt: expiresAt(body.payment.method),
+              });
       } catch (error) {
         await exec("delete from orders where id = $1", [orderId]);
         throw error instanceof GatewayError ? gatewayFailure(error) : error;
@@ -233,17 +260,19 @@ export const orderRoutes = [
       }
       await exec(
         `update orders set mp_payment_id = $2, payment_label = $3, payment_detail = $4,
-                pix_qr_code = $5, pix_qr_base64 = $6, pix_ticket_url = $7, pix_expires_at = $8, updated_at = now()
+                pix_qr_code = $5, pix_qr_base64 = $6, pix_ticket_url = $7, pix_expires_at = $8,
+                money_release_at = $9, updated_at = now()
           where id = $1`,
         [
           orderId,
           payment.id,
           paymentLabel(payment, savedCard?.payment_method_id ?? null),
           payment.statusDetail,
-          payment.pix?.qrCode ?? null,
+          payment.pix?.qrCode ?? payment.ticket?.barcode ?? null,
           payment.pix?.qrCodeBase64 ?? null,
-          payment.pix?.ticketUrl ?? null,
-          payment.pix?.expiresAt ?? null,
+          payment.pix?.ticketUrl ?? payment.ticket?.url ?? null,
+          payment.pix?.expiresAt ?? payment.ticket?.expiresAt ?? null,
+          payment.releaseAt,
         ],
       );
       await applyPayment(payment);

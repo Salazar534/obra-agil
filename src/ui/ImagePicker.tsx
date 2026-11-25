@@ -88,7 +88,7 @@ export function ImagePicker({
           </button>
         </div>
       </div>
-      <Sheet open={gallery} onClose={() => setGallery(false)} title="Galeria Obra Ágil" large>
+      <Sheet open={gallery} onClose={() => setGallery(false)} title="Galeria Obi Ágil" large>
         <div className="grid grid-cols-2 gap-3">
           {library.map((entry) => {
             const selected = entry.src === value;

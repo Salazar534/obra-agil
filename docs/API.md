@@ -1,9 +1,9 @@
-# Obra Ágil — API
+# Obi Ágil — API
 
-API REST do Obra Ágil, o marketplace de aluguel de equipamentos de obra. É um servidor Express com PostgreSQL que atende o app web e qualquer outro cliente (app nativo, integrações).
+API REST do Obi Ágil, o marketplace de aluguel de equipamentos de obra. É um servidor Express com PostgreSQL que atende o app web e qualquer outro cliente (app nativo, integrações).
 
-- **Base**: `http://localhost:3001/api` direto no servidor, ou `/api` pelo app (em desenvolvimento o Vite repassa `/api` e `/uploads` para o servidor; em produção o mesmo servidor entrega o app e a API).
-- **Documentação interativa**: Swagger em [`/api/docs`](http://localhost:3001/api/docs), com botão "Try it out" em cada rota.
+- **Base**: `https://api.obiagil.com.br/api` em produção. Em desenvolvimento, `http://localhost:3001/api`, e o Vite repassa `/api` e `/uploads` para o servidor.
+- **Página da API**: `https://api.obiagil.com.br`, só com a sessão aberta no app. Não há Swagger público.
 - **OpenAPI 3.1**: [`/api/openapi.json`](http://localhost:3001/api/openapi.json), com cópia em [`docs/openapi.json`](openapi.json) para importar no Postman ou Insomnia.
 - **Este arquivo**: a parte de cima é escrita à mão; a [referência dos endpoints](#referência-dos-endpoints) e os [modelos](#modelos) são gerados do código com `npm run docs`, então sempre batem com as rotas.
 
@@ -110,7 +110,7 @@ As respostas trazem os cabeçalhos `RateLimit` e `RateLimit-Policy`. Acima do li
 
 ## Pagamentos (Mercado Pago)
 
-Os pagamentos usam o Mercado Pago: cartão de crédito em até 12x e Pix. O número do cartão e o código de segurança nunca passam pelo servidor do Obra Ágil; o app troca os dados do cartão por um token de uso único com o MercadoPago.js.
+Os pagamentos usam o Mercado Pago no Brasil: cartão de crédito (Visa, Mastercard, Elo, American Express, Hipercard, Cabal e Diners, em até 12x), cartão de débito (Visa, Mastercard, Elo e Cabal, à vista), Pix, boleto Bradesco, lotérica e saldo da conta Mercado Pago. O número do cartão e o código de segurança nunca passam pelo servidor do Obi Ágil; o app troca os dados do cartão por um token de uso único com o MercadoPago.js.
 
 `GET /config` diz se os pagamentos estão ligados e traz a chave pública: `payments: { enabled, provider: "mercadopago", publicKey, maxInstallments: 12 }`.
 
@@ -128,10 +128,10 @@ O servidor calcula tudo; o app só mostra.
 
 A loja recebe aluguel + entrega.
 
-### Cartão de crédito
+### Cartão de crédito e de débito
 
 1. Carregue `https://sdk.mercadopago.com/js/v2` e crie `new MercadoPago(publicKey)`. Monte os campos seguros `cardNumber`, `expirationDate` e `securityCode`.
-2. Quando os primeiros dígitos do cartão aparecerem, chame `GET /payments/installments?amount=TOTAL&bin=PRIMEIROS_6_A_8`. A resposta traz `paymentMethodId` (bandeira), `issuerId` (banco) e as opções de 1x a 12x, com juros quando houver.
+2. Quando os primeiros dígitos do cartão aparecerem, chame `GET /payments/installments?amount=TOTAL&bin=PRIMEIROS_6_A_8&type=credit` (ou `type=debit`). A resposta traz `paymentMethodId` (bandeira, como `visa` ou `debvisa`), `issuerId` (banco) e as parcelas. Débito volta só 1x.
 3. Gere o token: `mp.fields.createCardToken({ cardholderName, identificationType: "CPF", identificationNumber })`.
 4. `POST /orders` com `payment: { method: "card", token, paymentMethodId, issuerId, installments }`.
    - Aprovado: `201` com o pedido em `pending` (já aparece para a loja).
@@ -150,7 +150,19 @@ A loja recebe aluguel + entrega.
 3. Quando o Pix cai, o pedido passa para `pending` e chega um evento `order` pelo [SSE](#atualizações-ao-vivo-sse). O servidor fica sabendo pelo webhook, por uma checagem automática a cada 30 segundos ou por `POST /orders/{id}/payment/refresh` (botão "Já paguei").
 4. Sem pagamento no prazo, o pedido é cancelado sozinho.
 
+### Boleto, lotérica e saldo Mercado Pago
+
+`POST /orders` com `payment.method` em `boleto`, `pec` ou `account_money`. Boleto e lotérica exigem CPF no perfil (ou em `payer.cpf`).
+
+- `boleto`: pedido em `awaiting_payment` por 3 dias, com `payment.ticket` (`barcode` é a linha digitável, `url` abre o boleto). A loja só vê o pedido depois que o banco compensar.
+- `pec`: igual ao boleto, para pagamento em dinheiro numa casa lotérica. `payment.ticket.barcode` é o código.
+- `account_money`: cobra o saldo da conta Mercado Pago do mesmo e-mail. Aprovado, o pedido já nasce `pending`. Se o Mercado Pago ainda pedir confirmação, o pedido fica `awaiting_payment` e `payment.ticket.url` abre a tela deles.
+
 O CPF e o e-mail do pagador vêm do perfil. Se faltarem, mande `payer: { email, cpf }` no próprio pedido: eles são salvos na conta.
+
+### Conta da loja
+
+Cada locadora conecta a própria conta em `POST /my/business/mercadopago`, que devolve a URL de autorização do Mercado Pago. Depois do aceite, o navegador volta para `GET /mercadopago/callback`. Os pedidos seguintes são criados com o token dessa loja e `application_fee` igual à taxa de serviço, então o aluguel cai na conta da loja e a taxa fica com a plataforma. Sem a conexão, o pagamento usa a conta do aplicativo. `business.mercadoPagoConnected` diz se a loja já autorizou.
 
 ### Estornos
 
@@ -158,7 +170,7 @@ O CPF e o e-mail do pagador vêm do perfil. Se faltarem, mande `payer: { email, 
 | --- | --- |
 | Loja recusa (`declined`) ou alguém cancela um pedido pago (`cancelled`) | Tudo o que foi pago |
 | Loja confirma a devolução (`returned`) | A caução |
-| Cliente cancela um Pix ainda não pago | Nada a estornar; o Pix é cancelado no Mercado Pago |
+| Cliente cancela um Pix, boleto ou lotérica ainda não pago | Nada a estornar; o pagamento é cancelado no Mercado Pago |
 
 Se o Mercado Pago falhar na hora, o estorno fica pendente e o servidor tenta de novo a cada 30 segundos. `payment.refunded` mostra quanto já voltou.
 
@@ -167,7 +179,7 @@ Se o Mercado Pago falhar na hora, o estorno fica pendente e o servidor tenta de 
 Com `NODE_ENV=test` e `PAYMENTS_DRIVER=fake` o servidor usa um Mercado Pago de mentira, que nunca é ativado fora desse modo:
 
 - tokens de cartão terminados em `reject` são recusados;
-- `POST /api/test/payments/{id}/approve` marca um Pix como pago.
+- `POST /api/test/payments/{id}/approve` marca um Pix, boleto ou lotérica como pago.
 
 É assim que `npm run test:api` testa os pagamentos sem cobrar ninguém.
 
@@ -175,10 +187,10 @@ Com `NODE_ENV=test` e `PAYMENTS_DRIVER=fake` o servidor usa um Mercado Pago de m
 
 ```mermaid
 stateDiagram-v2
-  [*] --> awaiting_payment: Pix gerado
-  [*] --> pending: cartão aprovado
-  awaiting_payment --> pending: Pix pago
-  awaiting_payment --> cancelled: cliente cancela ou Pix expira
+  [*] --> awaiting_payment: Pix, boleto ou lotérica
+  [*] --> pending: cartão ou saldo aprovado
+  awaiting_payment --> pending: pagamento confirmado
+  awaiting_payment --> cancelled: cliente cancela ou o prazo acaba
   pending --> accepted: loja aceita
   pending --> declined: loja recusa
   pending --> cancelled: cliente cancela
@@ -202,7 +214,7 @@ stateDiagram-v2
 - **Entrega**: o endereço precisa estar dentro do raio de entrega da loja (`radiusKm`); senão, `400 out_of_range`. Na retirada (`mode = "pickup"`) o endereço do pedido é o da loja.
 - **Conversa**: `GET/POST /orders/{id}/messages` depois do pagamento. `unread` em cada pedido conta as mensagens não lidas por quem pergunta; `POST /orders/{id}/read` zera.
 - **Avaliação**: uma por pedido, de 1 a 5 estrelas, depois de `returned` (`POST /orders/{id}/review`). Atualiza a nota da loja.
-- **Listas**: o cliente vê os pedidos que fez, menos os Pix cancelados sem pagamento. A loja vê os pedidos pagos.
+- **Listas**: o cliente vê os pedidos que fez, menos os pagamentos cancelados antes de cair. A loja vê os pedidos pagos.
 
 ## Atualizações ao vivo (SSE)
 
@@ -283,13 +295,13 @@ No PowerShell use `curl.exe` e passe o JSON com `--data-binary "@arquivo.json"`.
 
 ## Referência dos endpoints
 
-50 endpoints, gerados de `server/routes`. Todos ficam em `/api`.
+52 endpoints, gerados de `server/routes`. Todos ficam em `/api`.
 
 - **Meta**: [GET /config](#get-api-config), [GET /health](#get-api-health)
 - **Auth**: [POST /auth/register](#post-api-auth-register), [POST /auth/login](#post-api-auth-login), [POST /auth/phone/start](#post-api-auth-phone-start), [POST /auth/phone/verify](#post-api-auth-phone-verify), [POST /auth/phone/register](#post-api-auth-phone-register), [GET /auth/me](#get-api-auth-me), [POST /auth/logout](#post-api-auth-logout), [POST /auth/password/forgot](#post-api-auth-password-forgot), [POST /auth/password/reset](#post-api-auth-password-reset)
 - **Me**: [POST /me/password](#post-api-me-password), [PATCH /me](#patch-api-me), [POST /me/phone/start](#post-api-me-phone-start), [POST /me/phone/verify](#post-api-me-phone-verify), [DELETE /me/phone](#delete-api-me-phone), [POST /me/addresses](#post-api-me-addresses), [PUT /me/addresses/active](#put-api-me-addresses-active), [DELETE /me/addresses/{id}](#delete-api-me-addresses-id), [GET /me/favorites](#get-api-me-favorites), [PUT /me/favorites/{kind}/{id}](#put-api-me-favorites-kind-id), [DELETE /me/favorites/{kind}/{id}](#delete-api-me-favorites-kind-id), [POST /me/searches](#post-api-me-searches), [DELETE /me/searches](#delete-api-me-searches)
 - **Explore**: [GET /explore](#get-api-explore), [GET /search](#get-api-search), [GET /businesses/{id}](#get-api-businesses-id), [GET /items/{id}](#get-api-items-id)
-- **My business**: [PATCH /my/business](#patch-api-my-business), [GET /my/items](#get-api-my-items), [POST /my/items](#post-api-my-items), [PATCH /my/items/{id}](#patch-api-my-items-id), [DELETE /my/items/{id}](#delete-api-my-items-id)
+- **My business**: [PATCH /my/business](#patch-api-my-business), [POST /my/business/mercadopago](#post-api-my-business-mercadopago), [GET /mercadopago/callback](#get-api-mercadopago-callback), [GET /my/items](#get-api-my-items), [POST /my/items](#post-api-my-items), [PATCH /my/items/{id}](#patch-api-my-items-id), [DELETE /my/items/{id}](#delete-api-my-items-id)
 - **Orders**: [GET /orders](#get-api-orders), [POST /orders](#post-api-orders), [GET /orders/{id}](#get-api-orders-id), [POST /orders/{id}/status](#post-api-orders-id-status), [POST /orders/{id}/payment/refresh](#post-api-orders-id-payment-refresh), [GET /orders/{id}/messages](#get-api-orders-id-messages), [POST /orders/{id}/messages](#post-api-orders-id-messages), [POST /orders/{id}/read](#post-api-orders-id-read), [POST /orders/{id}/review](#post-api-orders-id-review)
 - **Payments**: [GET /payment-methods](#get-api-payment-methods), [POST /payment-methods](#post-api-payment-methods), [PATCH /payment-methods/{id}](#patch-api-payment-methods-id), [DELETE /payment-methods/{id}](#delete-api-payment-methods-id), [GET /payments/installments](#get-api-payments-installments)
 - **Uploads**: [POST /uploads](#post-api-uploads)
@@ -1025,6 +1037,52 @@ Envie só os campos que mudaram.
 | 4xx/5xx | Erro | [Error](#model-error) |
 
 
+<a id="post-api-my-business-mercadopago"></a>
+
+### POST `/api/my/business/mercadopago`
+
+**Conectar o Mercado Pago da loja** · Requer sessão de conta de empresa
+
+Devolve a URL de autorização. A dona da loja entra na conta Mercado Pago que deve receber os aluguéis. Depois do aceite, o Mercado Pago volta para /api/mercadopago/callback e os pagamentos seguintes caem nessa conta. A taxa de serviço fica com a plataforma.
+
+**Respostas**
+
+| Código | Quando | Corpo |
+| --- | --- | --- |
+| 200 | URL de autorização | objeto, ver abaixo |
+| 4xx/5xx | Erro | [Error](#model-error) |
+
+Corpo da resposta 200:
+
+| Campo | Tipo | Obrigatório | Descrição |
+| --- | --- | --- | --- |
+| `url` | string | sim |  |
+
+
+<a id="get-api-mercadopago-callback"></a>
+
+### GET `/api/mercadopago/callback`
+
+**Retorno da autorização do Mercado Pago** · Pública
+
+O Mercado Pago redireciona o navegador para cá com code e state. Não chame esta rota direto.
+
+**Parâmetros**
+
+| Nome | Onde | Tipo | Obrigatório | Descrição |
+| --- | --- | --- | --- | --- |
+| `code` | query | string | não |  |
+| `state` | query | string | não |  |
+| `error` | query | string | não |  |
+
+**Respostas**
+
+| Código | Quando | Corpo |
+| --- | --- | --- |
+| 302 | Volta para o app | — |
+| 4xx/5xx | Erro | [Error](#model-error) |
+
+
 <a id="get-api-my-items"></a>
 
 ### GET `/api/my/items`
@@ -1158,7 +1216,7 @@ Cliente: os pedidos que fez. Empresa: os pedidos pagos da sua loja.
 
 **Fazer pedido e pagar** · Requer sessão de conta de cliente
 
-Calcula os valores no servidor (aluguel + entrega + taxa de serviço de 5% + caução), confere se o equipamento está livre nas datas e cobra no Mercado Pago. Cartão: aprovado vira pending (vai para a loja); recusado devolve 402 e o pedido não é criado. Pix: o pedido fica awaiting_payment com o QR code em payment.pix por 30 minutos e anda sozinho quando o pagamento cai.
+Calcula os valores no servidor (aluguel + entrega + taxa de serviço de 5% + caução), confere se o equipamento está livre nas datas e cobra no Mercado Pago. Cartão de crédito ou débito e saldo Mercado Pago: aprovado vira pending (vai para a loja); recusado devolve 402 e o pedido não é criado. Pix fica awaiting_payment com o QR code em payment.pix por 30 minutos. Boleto e lotérica ficam awaiting_payment com payment.ticket por 3 dias.
 
 **Corpo (JSON)**
 
@@ -1173,12 +1231,13 @@ Calcula os valores no servidor (aluguel + entrega + taxa de serviço de 5% + cau
 | `address.detail` | string | não | Bairro e cidade. Até 160 caracteres, padrão `""`. |
 | `address.lat` | number | sim | De -90 a 90. |
 | `address.lng` | number | sim | De -180 a 180. |
-| `payment.method` | `"card"` \| `"pix"` | sim |  |
-| `payment.token` | string | sim | Só com `method` = `"card"`. Token criado pelo MercadoPago.js (mp.fields.createCardToken). Vale uma vez. 8 a 200 caracteres. |
-| `payment.paymentMethodId` | string | sim | Só com `method` = `"card"`. Ex.: master, visa. Vem de /payments/installments. 2 a 40 caracteres. |
-| `payment.issuerId` | string \| null | não | Só com `method` = `"card"`. |
-| `payment.installments` | integer | sim | Só com `method` = `"card"`. De 1 a 12. |
-| `payment.savedCardId` | string (uuid) | não | Só com `method` = `"card"`. Id do cartão salvo quando o token foi criado com createCardToken({ cardId }). |
+| `payment` | object \| object | sim |  |
+| `payment.method` | `"card"` | sim |  |
+| `payment.token` | string | sim | Token criado pelo MercadoPago.js (mp.fields.createCardToken). Vale uma vez. 8 a 200 caracteres. |
+| `payment.paymentMethodId` | string | sim | Ex.: master, visa, debvisa. Vem de /payments/installments. 2 a 40 caracteres. |
+| `payment.issuerId` | string \| null | não |  |
+| `payment.installments` | integer | sim | De 1 a 12. |
+| `payment.savedCardId` | string (uuid) | não | Id do cartão salvo quando o token foi criado com createCardToken({ cardId }). |
 | `payer` | object | não | Completa o perfil quando ainda não tem e-mail ou CPF. |
 | `payer.email` | string | não |  |
 | `payer.cpf` | string | não | CPF, com ou sem pontuação. |
@@ -1455,7 +1514,7 @@ Apaga o cartão também do Mercado Pago.
 
 **Opções de parcelamento** · Requer sessão de conta de cliente
 
-Parcelas de 1x a 12x para o valor e o cartão (pelos 6 a 8 primeiros dígitos), com juros quando houver.
+Parcelas de crédito (1x a 12x) ou débito à vista, pelo BIN do cartão.
 
 **Parâmetros**
 
@@ -1463,6 +1522,7 @@ Parcelas de 1x a 12x para o valor e o cartão (pelos 6 a 8 primeiros dígitos), 
 | --- | --- | --- | --- | --- |
 | `amount` | query | number | sim | Valor total em reais. De 1 a 1000000. |
 | `bin` | query | string | sim | 6 a 8 primeiros dígitos do cartão. |
+| `type` | query | `"credit"` \| `"debit"` | não | credit (padrão) ou debit. |
 
 **Respostas**
 
@@ -1592,6 +1652,7 @@ Locadora.
 | `radiusKm` | integer | sim |  |
 | `rating` | number | sim | Média de 0 a 5; 0 quando ainda não há avaliações. |
 | `reviewCount` | integer | sim |  |
+| `mercadoPagoConnected` | boolean | sim | A loja autorizou o Mercado Pago e recebe os pagamentos na própria conta. |
 | `createdAt` | integer | sim |  |
 | `distanceKm` | number | não | Distância até o ponto da busca. |
 
@@ -1754,8 +1815,8 @@ Pedido de aluguel.
 
 | Campo | Tipo | Obrigatório | Descrição |
 | --- | --- | --- | --- |
-| `method` | `"card"` \| `"pix"` | sim |  |
-| `label` | string | sim | Ex.: Mastercard •••• 6351 · 3x. |
+| `method` | `"card"` \| `"pix"` \| `"boleto"` \| `"pec"` \| `"account_money"` | sim |  |
+| `label` | string | sim | Ex.: Mastercard •••• 6351 · 3x, Pix, Boleto, Lotérica, Saldo Mercado Pago. |
 | `installments` | integer | sim |  |
 | `status` | [PaymentStatus](#model-paymentstatus) | sim |  |
 | `detail` | string \| null | sim | Motivo informado pelo Mercado Pago. |
@@ -1765,6 +1826,10 @@ Pedido de aluguel.
 | `pix.qrCodeBase64` | string | sim | Imagem PNG do QR code em base64. |
 | `pix.ticketUrl` | string \| null | sim |  |
 | `pix.expiresAt` | integer | sim |  |
+| `ticket` | object \| null | sim | Presente enquanto boleto, lotérica ou saldo Mercado Pago esperam pagamento. |
+| `ticket.barcode` | string \| null | sim | Linha digitável do boleto ou código da lotérica. |
+| `ticket.url` | string \| null | sim | Página do boleto ou da confirmação no Mercado Pago. |
+| `ticket.expiresAt` | integer \| null | sim |  |
 
 <a id="model-orderstatus"></a>
 

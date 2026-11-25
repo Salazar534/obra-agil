@@ -4,7 +4,6 @@ import cookieParser from "cookie-parser";
 import express, { type ErrorRequestHandler, type RequestHandler } from "express";
 import helmet from "helmet";
 import multer from "multer";
-import swaggerUi from "swagger-ui-express";
 import { config } from "./config.ts";
 import { HttpError, notFound } from "./lib/errors.ts";
 import { apiLimiter } from "./lib/limits.ts";
@@ -12,12 +11,14 @@ import { buildOpenApi } from "./lib/openapi.ts";
 import { mount, type AnyRoute } from "./lib/route.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { businessRoutes } from "./routes/business.ts";
+import { catalogRoutes } from "./routes/catalog.ts";
 import { exploreRoutes } from "./routes/explore.ts";
 import { meRoutes } from "./routes/me.ts";
 import { metaRoutes } from "./routes/meta.ts";
 import { orderRoutes } from "./routes/orders.ts";
 import { paymentRoutes, testRoutes } from "./routes/payments.ts";
 import { uploadRoutes, uploadsDir } from "./routes/uploads.ts";
+import { apiHome } from "./pages/api-home.ts";
 import { fakeGateway } from "./services/payments.ts";
 
 export const routes: AnyRoute[] = [
@@ -25,6 +26,7 @@ export const routes: AnyRoute[] = [
   ...authRoutes,
   ...meRoutes,
   ...exploreRoutes,
+  ...catalogRoutes,
   ...businessRoutes,
   ...orderRoutes,
   ...paymentRoutes,
@@ -100,20 +102,6 @@ export function createApp() {
   api.get("/openapi.json", (_req, res) => {
     res.json(spec);
   });
-  api.use(
-    "/docs",
-    swaggerUi.serve,
-    swaggerUi.setup(spec, {
-      customSiteTitle: "Obra Ágil API",
-      swaggerOptions: {
-        persistAuthorization: true,
-        requestInterceptor: (request: { headers: Record<string, string> }) => {
-          request.headers["X-Requested-With"] = "swagger-ui";
-          return request;
-        },
-      },
-    }),
-  );
   api.use(requireAppHeader);
   mount(api, routes);
   if (fakeGateway()) mount(api, testRoutes);
@@ -123,10 +111,15 @@ export function createApp() {
   app.use("/uploads", express.static(uploadsDir, { immutable: true, maxAge: "365d", index: false, fallthrough: false }));
 
   const dist = join(import.meta.dirname, "..", "dist");
-  if (config.isProduction && existsSync(dist)) {
+  const serveWeb = process.env.RAILWAY_SERVICE_NAME !== "api";
+  if (config.isProduction && serveWeb && existsSync(dist)) {
     app.use(express.static(dist, { index: false, maxAge: "1h" }));
     app.get(/^\/(?!api\/|uploads\/).*/, (_req, res) => {
       res.sendFile(join(dist, "index.html"));
+    });
+  } else {
+    app.get("/", (req, res, next) => {
+      void apiHome(req, res).catch(next);
     });
   }
 

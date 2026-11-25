@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Camera, Check, CreditCard, Heart, Info, KeyRound, LifeBuoy, MapPin, Megaphone, Plus, Smartphone, Store, Trash, UserRound, Volume2 } from "lucide-react";
+import { Bell, Camera, Check, CreditCard, Heart, Info, KeyRound, LifeBuoy, MapPin, Megaphone, Plus, Server, Smartphone, Store, Trash, UserRound, Volume2 } from "lucide-react";
 import { errorMessage } from "../../lib/api.ts";
 import { digits, formatCpf, formatPhone, isMobile, isValidCpf, isValidEmail } from "../../lib/format.ts";
 import { distanceKm, formatKm } from "../../lib/geo.ts";
@@ -26,7 +26,7 @@ export function ProfileButton() {
       aria-label="Abrir perfil"
       title="Perfil"
       onClick={() => nav.push("profile")}
-      className="glass grid size-11 shrink-0 cursor-pointer place-items-center rounded-full transition-transform duration-200 active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      className="glass grid size-11 shrink-0 cursor-pointer place-items-center rounded-full transition-transform duration-200 active:scale-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary lg:hidden"
     >
       <Avatar name={me.name} src={me.photo} size={34} />
     </button>
@@ -125,13 +125,14 @@ export function ProfileScreen() {
       <Group>
         <Row icon={LifeBuoy} tone="green" title="Ajuda" chevron onClick={() => setHelp(true)} />
         {me.role === "customer" ? <Row icon={Store} tone="teal" title="Anunciar meus equipamentos" chevron onClick={() => setAdvertise(true)} /> : null}
-        <Row icon={Info} tone="gray" title="Sobre o Obra Ágil" chevron onClick={() => setAbout(true)} />
+        <Row icon={Info} tone="gray" title="Sobre o Obi Ágil" chevron onClick={() => setAbout(true)} />
+        {db.config?.apiPage ? <Row icon={Server} tone="blue" title="API" subtitle="Página da sua conta" chevron onClick={() => window.location.assign(db.config?.apiPage ?? "/")} /> : null}
       </Group>
 
       <Group>
         <Row title="Sair" destructive center onClick={() => setLeaving(true)} />
       </Group>
-      <p className="mt-6 text-center type-footnote text-subtle">Obra Ágil 1.0</p>
+      <p className="mt-6 text-center type-footnote text-subtle">Obi Ágil 1.0</p>
 
       <ActionSheet
         open={leaving}
@@ -171,7 +172,7 @@ export function ProfileScreen() {
       <Sheet open={about} onClose={() => setAbout(false)} title="Sobre">
         <div className="flex flex-col items-center py-4 text-center">
           <img src="/favicon.svg" alt="" className="size-20 rounded-[22px] elev-2" />
-          <h3 className="mt-4 type-title2">Obra Ágil</h3>
+          <h3 className="mt-4 type-title2">Obi Ágil</h3>
           <p className="mt-1 type-subhead text-muted-foreground">Versão 1.0</p>
           <p className="mt-4 max-w-[300px] type-body text-muted-foreground">
             Equipamentos de obra perto de você. Locadoras anunciam o estoque, quem precisa aluga, paga com Pix ou cartão em até 12x e recebe na obra.

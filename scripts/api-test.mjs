@@ -96,6 +96,9 @@ try {
 
   console.log("\nMeta");
   check("health", (await anon.call("GET", "/health")).body?.db === true);
+  const home = await fetch(`http://127.0.0.1:${port}/`);
+  const homeHtml = await home.text();
+  check("api page asks for a session", home.status === 401 && homeHtml.includes("Entre no app"));
   const docs = await anon.call("GET", "/openapi.json");
   check("openapi spec", docs.status === 200 && Object.keys(docs.body.paths).length > 30);
   check("state-changing request without X-Requested-With is refused", (await anon.call("POST", "/auth/login", { email: "a@b.co", password: "x" }, { header: false })).status === 403);
@@ -112,6 +115,9 @@ try {
     business: { name: "Casa & Obra Aluguel", category: "concreto" },
   });
   check("register business", reg.status === 201 && reg.body.business?.name === "Casa & Obra Aluguel" && reg.body.user.email === "carlos@loja.com", reg.body);
+  const authedHome = await fetch(`http://127.0.0.1:${port}/`, { headers: { cookie: `oa_session=${biz.cookies.get("oa_session")}` } });
+  const authedHtml = await authedHome.text();
+  check("api page shows the signed-in account", authedHome.status === 200 && authedHtml.includes("Carlos Lima"));
   check("session cookie is httpOnly", biz.cookies.has("oa_session"));
   const dup = await anon.call("POST", "/auth/register", { role: "customer", name: "Outro Carlos", email: "carlos@loja.com", password: "outra-senha-1", address: near });
   check("duplicate email -> 409", dup.status === 409 && dup.body.error.code === "email_taken", dup.body);
@@ -259,6 +265,12 @@ try {
   check("paid pix moves to pending", paidPix.body.status === "pending" && paidPix.body.payment.status === "approved" && paidPix.body.payment.pix === null, paidPix.body);
   bizOrders = await biz.call("GET", "/orders");
   check("store now sees the pix order", bizOrders.body.length === 2);
+  const boleto = await ana.call("POST", "/orders", { itemId, start: addDays(start1, 14), days: 1, mode: "pickup", payment: { method: "boleto" } });
+  check("boleto waits with a barcode", boleto.status === 201 && boleto.body.status === "awaiting_payment" && boleto.body.payment.method === "boleto" && boleto.body.payment.ticket?.barcode && boleto.body.payment.pix === null, boleto.body);
+  const wallet = await ana.call("POST", "/orders", { itemId, start: addDays(start1, 16), days: 1, mode: "pickup", payment: { method: "account_money" } });
+  check("Mercado Pago balance approves the order", wallet.status === 201 && wallet.body.status === "pending" && wallet.body.payment.label === "Saldo Mercado Pago", wallet.body);
+  const loterica = await ana.call("POST", "/orders", { itemId, start: addDays(start1, 18), days: 1, mode: "pickup", payment: { method: "pec" } });
+  check("lotérica waits with a code", loterica.status === 201 && loterica.body.payment.method === "pec" && loterica.body.payment.ticket?.url, loterica.body);
 
   console.log("\nChat");
   const msg = await ana.call("POST", `/orders/${o1.id}/messages`, { text: "Oi! Pode entregar de manhã?" });
@@ -286,6 +298,19 @@ try {
   check("review before return refused", (await ana.call("POST", `/orders/${o1.id}/review`, { stars: 5 })).status === 409);
   const returned = await biz.call("POST", `/orders/${o1.id}/status`, { status: "returned" });
   check("return refunds the deposit", returned.body.status === "returned" && returned.body.payment.status === "partially_refunded" && returned.body.payment.refunded === 300, returned.body.payment);
+  const balance = await biz.call("GET", "/my/business/balance");
+  check(
+    "store statement splits waiting, receiving, available, fee and refund",
+    balance.status === 200 &&
+      balance.body.receiving === 282.2 &&
+      balance.body.available === 869.7 &&
+      balance.body.waiting === 779.8 &&
+      balance.body.serviceFee === 26.98 &&
+      balance.body.refunded === 300 &&
+      balance.body.depositHeld === 600 &&
+      balance.body.withdrawUrl.startsWith("https://www.mercadopago.com.br/"),
+    balance.body,
+  );
   check("history has every step", returned.body.history.map((h) => h.status).join(",") === "awaiting_payment,pending,accepted,on_the_way,delivered,returned", returned.body.history);
   const review = await ana.call("POST", `/orders/${o1.id}/review`, { stars: 5, text: "Entrega rápida e betoneira nova." });
   check("customer reviews", review.status === 201 && review.body.author === "Ana S.", review.body);
@@ -294,6 +319,13 @@ try {
   check("store rating updated", rated.body.business.rating === 5 && rated.body.business.reviewCount === 1 && rated.body.reviews.length === 1);
   const declined = await biz.call("POST", `/orders/${pix.body.id}/status`, { status: "declined" });
   check("declining refunds everything", declined.body.status === "declined" && declined.body.payment.status === "refunded" && declined.body.payment.refunded === declined.body.total, declined.body.payment);
+  const afterDecline = await biz.call("GET", "/my/business/balance");
+  check(
+    "a full refund leaves the platform fee and the store share",
+    afterDecline.body.serviceFee === 17.99 && afterDecline.body.available === 389.9 && afterDecline.body.refunded === 788.79 && afterDecline.body.depositHeld === 300,
+    afterDecline.body,
+  );
+  check("customer cannot read the store statement", (await ana.call("GET", "/my/business/balance")).status === 403);
   const rentals = await anon.call("GET", `/items/${itemId}`);
   check("rentals counted on accept", rentals.body.item.rentals === 1);
 

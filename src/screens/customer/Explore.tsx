@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, MapPin, Search, X } from "lucide-react";
 import { errorMessage } from "../../lib/api.ts";
 import { categories } from "../../lib/catalog.ts";
@@ -60,6 +60,11 @@ export function Explore() {
   const me = useMe();
   const nav = useNav();
   const [addressOpen, setAddressOpen] = useState(false);
+  useEffect(() => {
+    const open = () => setAddressOpen(true);
+    window.addEventListener("obra:address", open);
+    return () => window.removeEventListener("obra:address", open);
+  }, []);
   const origin = originOf(db, me);
   const { status, near, all, reload } = useNearby(origin);
   const popular = useMemo(
@@ -81,10 +86,10 @@ export function Explore() {
         className="mt-3 flex h-11 w-full cursor-pointer items-center gap-2 rounded-full bg-card px-4 text-left text-subtle elev-1 transition-transform active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-primary"
       >
         <Search className="size-[18px] text-muted-foreground" aria-hidden="true" />
-        <span className="type-body">Buscar equipamentos</span>
+        <span className="type-body">Buscar aluguel ou serviço</span>
       </button>
 
-      <div className="-mx-4 mt-5 flex snap-x gap-1 overflow-x-auto px-3 pb-1">
+      <div className="-mx-4 mt-5 flex snap-x gap-1 overflow-x-auto px-3 pb-1 lg:hidden">
         {categories.map((category, index) => (
           <button
             key={category.id}
@@ -146,7 +151,7 @@ export function Explore() {
       ) : (
         <>
           <SectionHeader title="Perto de você" action={{ label: "Ver mapa", onClick: () => nav.switchTab("map") }} />
-          <div className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1">
+          <div className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:grid-cols-2 lg:overflow-visible lg:px-0 xl:grid-cols-3">
             {near.slice(0, 8).map(({ business, km }) => (
               <BusinessCard key={business.id} business={business} km={km} onClick={() => nav.push("business", { id: business.id })} />
             ))}
@@ -155,7 +160,7 @@ export function Explore() {
           {popular.length ? (
             <>
               <SectionHeader title={popular.some((l) => l.item.rentals > 0) ? "Mais alugados" : "Para alugar agora"} />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4 2xl:grid-cols-5">
                 {popular.map((listing) => (
                   <ItemCard key={listing.item.id} listing={listing} onClick={() => nav.push("item", { id: listing.item.id })} />
                 ))}

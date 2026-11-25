@@ -61,5 +61,5 @@ export function CustomerApp() {
     { id: "wallet", label: "Carteira", icon: CreditCard },
   ];
 
-  return <Shell tabs={tabs} render={render} hideTabBar={(route) => route.name === "item" || route.name === "chat"} />;
+  return <Shell layout="market" tabs={tabs} render={render} hideTabBar={(route) => route.name === "item" || route.name === "chat"} />;
 }

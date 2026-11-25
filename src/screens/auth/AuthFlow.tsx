@@ -98,6 +98,9 @@ export function AuthFlow({
   const [name, setName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [category, setCategory] = useState<CategoryId>("ferramentas");
+  const [offers, setOffers] = useState<"rental" | "service" | "both">("rental");
+  const [personType, setPersonType] = useState<"pf" | "pj">("pf");
+  const [documentNumber, setDocumentNumber] = useState("");
   const [phone, setPhone] = useState(prefill?.via === "phone" ? prefill.value : "");
   const [email, setEmail] = useState(prefill?.via === "email" ? prefill.value : "");
   const [password, setPassword] = useState("");
@@ -210,7 +213,8 @@ export function AuthFlow({
       role,
       name: name.trim(),
       address,
-      business: role === "business" ? { name: businessName.trim(), category } : undefined,
+      document: documentNumber,
+      business: role === "business" ? { name: businessName.trim(), category, offers, personType, document: documentNumber } : undefined,
     };
     try {
       const session = ticket
@@ -231,11 +235,12 @@ export function AuthFlow({
     }
   }
 
+  const storeNeedsCnpj = offers !== "service";
   const detailsValid = name.trim().length >= 3 && (role !== "business" || businessName.trim().length >= 3);
   const emailReady = isValidEmail(email) && password.length >= (mode === "signup" ? 8 : 1);
 
   const prompt: Record<Step, { mood: MascotMood; text: string }> = {
-    role: { mood: "wave", text: "Oi! Como você vai usar o Obra Ágil?" },
+    role: { mood: "wave", text: "Oi! Como você vai usar a Obi Ágil?" },
     details: { mood: "idle", text: role === "business" ? "Me conta da sua locadora." : "Como posso te chamar?" },
     method: mode === "signin" ? { mood: "wave", text: "Que bom te ver! Como você entra?" } : { mood: "idle", text: "Como você quer entrar no app?" },
     code: { mood: code.length === 6 ? "celebrate" : "think", text: "Enviei um código por SMS." },
@@ -286,15 +291,15 @@ export function AuthFlow({
             <RoleCard
               selected={role === "customer"}
               image="/img/role-cliente.webp"
-              title="Quero alugar"
-              text="Encontre equipamentos perto da obra."
+              title="Quero alugar ou contratar"
+              text="Encontre produtos e profissionais perto de você."
               onClick={() => setRole("customer")}
             />
             <RoleCard
               selected={role === "business"}
               image="/img/role-empresa.webp"
-              title="Tenho uma locadora"
-              text="Anuncie seu estoque e receba pedidos."
+              title="Quero anunciar"
+              text="Alugue o que você tem ou ofereça um serviço."
               onClick={() => setRole("business")}
             />
           </div>
@@ -304,9 +309,56 @@ export function AuthFlow({
           <div className="mt-6 flex flex-col gap-4">
             {role === "business" ? (
               <>
-                <Field label="Nome da locadora" value={businessName} autoComplete="organization" placeholder="Ex.: Casa & Obra Aluguel" onChange={(e) => setBusinessName(e.target.value)} />
+                <Field label="Nome da loja" value={businessName} autoComplete="organization" placeholder="Ex.: Estúdio da Ana" onChange={(e) => setBusinessName(e.target.value)} />
+                <div role="radiogroup" aria-label="O que você deseja oferecer" className="flex flex-col gap-2">
+                  {(
+                    [
+                      ["rental", "Alugar produtos", "Ganhe dinheiro alugando o que você tem."],
+                      ["service", "Oferecer serviços", "Divulgue o que você sabe fazer."],
+                      ["both", "Ambos", "Produtos e serviços no mesmo perfil."],
+                    ] as const
+                  ).map(([value, title, text]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={offers === value}
+                      onClick={() => setOffers(value)}
+                      className={`rounded-[22px] px-4 py-3 text-left ${offers === value ? "bg-primary text-primary-foreground" : "bg-card elev-1"}`}
+                    >
+                      <span className="block type-headline">{title}</span>
+                      <span className={`block type-footnote ${offers === value ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{text}</span>
+                    </button>
+                  ))}
+                </div>
+                <div role="radiogroup" aria-label="Tipo de pessoa" className={`flex gap-2 ${storeNeedsCnpj ? "hidden" : ""}`}>
+                  {(
+                    [
+                      ["pf", "Pessoa física"],
+                      ["pj", "Pessoa jurídica"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={personType === value}
+                      onClick={() => setPersonType(value)}
+                      className={`flex-1 rounded-full px-3 py-2 type-subhead font-semibold ${personType === value ? "bg-primary text-primary-foreground" : "bg-card elev-1"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <Field
+                  label={storeNeedsCnpj || personType === "pj" ? "CNPJ" : "CPF"}
+                  value={documentNumber}
+                  inputMode="numeric"
+                  placeholder={personType === "pj" ? "00.000.000/0000-00" : "000.000.000-00"}
+                  onChange={(e) => setDocumentNumber(e.target.value)}
+                />
                 <div>
-                  <p className="mb-1.5 block px-1 type-footnote font-semibold text-muted-foreground">O que vocês mais alugam</p>
+                  <p className="mb-1.5 block px-1 type-footnote font-semibold text-muted-foreground">Categoria inicial. Dá para mudar depois.</p>
                   <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1" role="radiogroup" aria-label="Categoria principal">
                     {categories.map((c) => {
                       const selected = c.id === category;
@@ -329,6 +381,15 @@ export function AuthFlow({
                   </div>
                 </div>
               </>
+            ) : null}
+            {role === "customer" ? (
+              <Field
+                label="CPF ou CNPJ"
+                value={documentNumber}
+                inputMode="numeric"
+                placeholder="Obrigatório para validar a conta"
+                onChange={(e) => setDocumentNumber(e.target.value)}
+              />
             ) : null}
             <Field
               label={role === "business" ? "Seu nome" : "Nome completo"}

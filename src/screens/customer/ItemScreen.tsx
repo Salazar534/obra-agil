@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Check, ChevronRight, CreditCard, Heart, MapPin, Navigation, QrCode, Share } from "lucide-react";
+import { Barcode, Check, ChevronRight, CreditCard, Heart, MapPin, Navigation, QrCode, Share, Store, Wallet } from "lucide-react";
 import { ApiError, errorMessage } from "../../lib/api.ts";
-import { addDays, brl, brlShort, dateLabel, dayChip, isoDay, isValidCpf, isValidEmail, plural } from "../../lib/format.ts";
+import { addDays, brl, brlShort, dateLabel, dayChip, formatCpf, isoDay, isValidCpf, isValidEmail, plural } from "../../lib/format.ts";
 import { directionsUrl, distanceKm, formatKm, type Address } from "../../lib/geo.ts";
 import { cardErrorMessage, useMercadoPago } from "../../lib/mercadopago.ts";
 import { useNav } from "../../lib/nav.tsx";
@@ -17,7 +17,9 @@ import { Sheet } from "../../ui/Sheet.tsx";
 import { PageLoading, shareLink, toggleSaved } from "./BusinessScreen.tsx";
 
 type Mode = Order["mode"];
-type Choice = { kind: "saved"; id: string } | { kind: "new" } | { kind: "pix" };
+type Choice = { kind: "saved"; id: string } | { kind: "credit" } | { kind: "debit" } | { kind: "pix" } | { kind: "boleto" } | { kind: "pec" } | { kind: "account_money" };
+
+const cardChoice = (choice: Choice) => choice.kind === "saved" || choice.kind === "credit" || choice.kind === "debit";
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
@@ -56,7 +58,7 @@ function CheckoutSheet({
   const price = priceOf(item, business, days, mode, db.config?.serviceFeeRate ?? 0.05);
   const defaultChoice = (): Choice => {
     const preferred = cards.find((c) => c.isDefault) ?? cards[0];
-    return preferred ? { kind: "saved", id: preferred.id } : { kind: "new" };
+    return preferred ? { kind: "saved", id: preferred.id } : { kind: "credit" };
   };
   const [choice, setChoice] = useState<Choice>(defaultChoice);
   const [plan, setPlan] = useState<Installments | null>(null);
@@ -78,7 +80,8 @@ function CheckoutSheet({
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saved = choice.kind === "saved" ? cards.find((c) => c.id === choice.id) : undefined;
-  const planBin = choice.kind === "saved" ? (saved?.firstSix ?? null) : choice.kind === "new" ? bin : null;
+  const planBin = choice.kind === "saved" ? (saved?.firstSix ?? null) : choice.kind === "credit" || choice.kind === "debit" ? bin : null;
+  const debit = choice.kind === "debit" || (choice.kind === "saved" && Boolean(saved?.paymentMethodId.startsWith("deb")));
 
   useEffect(() => {
     if (!open || !enabled || !planBin) {
@@ -88,7 +91,7 @@ function CheckoutSheet({
     let alive = true;
     setPlanLoading(true);
     actions
-      .installments(price.total, planBin)
+      .installments(price.total, planBin, debit ? "debit" : "credit")
       .then((next) => {
         if (!alive) return;
         setPlan(next);
@@ -99,11 +102,12 @@ function CheckoutSheet({
     return () => {
       alive = false;
     };
-  }, [open, enabled, planBin, price.total]);
+  }, [open, enabled, planBin, price.total, debit]);
 
   const option = plan?.options.find((o) => o.installments === count);
   const needEmail = !me.email;
-  const card = choice.kind !== "pix";
+  const needCpf = (choice.kind === "boleto" || choice.kind === "pec" || choice.kind === "account_money") && !me.cpf;
+  const card = cardChoice(choice);
   const ready = enabled && !pending && (card ? Boolean(sdk && plan && option) : true);
 
   async function confirm() {
@@ -118,13 +122,17 @@ function CheckoutSheet({
         const token = await sdk.fields.createCardToken({ cardId: saved.cardId });
         if (!token?.id) throw new Error("token");
         payment = { method: "card", token: token.id, paymentMethodId: saved.paymentMethodId, issuerId: saved.issuerId, installments: count, savedCardId: saved.id };
-      } else if (choice.kind === "new" && sdk && plan) {
+      } else if ((choice.kind === "credit" || choice.kind === "debit") && sdk && plan) {
         if (holder.trim().length < 4) throw new Error("holder");
         if (!isValidCpf(cpf)) throw new Error("cpf");
         const token = await sdk.fields.createCardToken({ cardholderName: holder.trim(), identificationType: "CPF", identificationNumber: cpf });
         if (!token?.id) throw new Error("token");
         payment = { method: "card", token: token.id, paymentMethodId: plan.paymentMethodId, issuerId: plan.issuerId, installments: count };
         payerCpf = cpf;
+      } else if (choice.kind === "boleto" || choice.kind === "pec" || choice.kind === "account_money") {
+        if (!isValidCpf(me.cpf ?? cpf)) throw new Error("cpf");
+        payment = { method: choice.kind };
+        payerCpf = me.cpf ? undefined : cpf;
       }
       const order = await actions.placeOrder({
         itemId: item.id,
@@ -138,7 +146,7 @@ function CheckoutSheet({
       onPlaced(order);
     } catch (problem) {
       if (problem instanceof Error && problem.message === "holder") setError("Digite o nome como está no cartão.");
-      else if (problem instanceof Error && problem.message === "cpf") setError("Confira o CPF do titular do cartão.");
+      else if (problem instanceof Error && problem.message === "cpf") setError(card ? "Confira o CPF do titular do cartão." : "Confira o CPF para este pagamento.");
       else setError(problem instanceof ApiError ? problem.message : cardErrorMessage(problem));
     } finally {
       setPending(false);
@@ -149,9 +157,15 @@ function CheckoutSheet({
     ? "Pagamentos em configuração"
     : choice.kind === "pix"
       ? `Gerar Pix · ${brl(price.total)}`
-      : option && option.installments > 1
-        ? `Pagar ${option.installments}x de ${brl(option.installmentAmount)}`
-        : `Pagar ${brl(option?.totalAmount ?? price.total)}`;
+      : choice.kind === "boleto"
+        ? `Gerar boleto · ${brl(price.total)}`
+        : choice.kind === "pec"
+          ? `Gerar código · ${brl(price.total)}`
+          : choice.kind === "account_money"
+            ? `Pagar com saldo · ${brl(price.total)}`
+            : option && option.installments > 1
+              ? `Pagar ${option.installments}x de ${brl(option.installmentAmount)}`
+              : `Pagar ${brl(option?.totalAmount ?? price.total)}`;
 
   return (
     <Sheet
@@ -189,7 +203,14 @@ function CheckoutSheet({
         <PaymentsUnavailable text="A loja ainda não pode receber pagamentos pelo app. Tente de novo mais tarde." />
       ) : (
         <>
-          <Group title="Pagamento">
+          <Group
+            title="Pagamento"
+            footer={
+              business.mercadoPagoConnected
+                ? "O valor cai na conta Mercado Pago desta loja."
+                : "Esta loja ainda não conectou o Mercado Pago. Até lá, o pagamento fica na conta da plataforma."
+            }
+          >
             {cards.map((method) => (
               <Row
                 key={method.id}
@@ -207,10 +228,18 @@ function CheckoutSheet({
             <Row
               icon={CreditCard}
               tone="blue"
-              title="Novo cartão de crédito"
-              subtitle="Parcele em até 12x"
-              onClick={() => setChoice({ kind: "new" })}
-              trailing={choice.kind === "new" ? <Selected /> : null}
+              title="Cartão de crédito"
+              subtitle="Visa, Mastercard, Elo, Amex, Hipercard, Cabal e Diners · até 12x"
+              onClick={() => setChoice({ kind: "credit" })}
+              trailing={choice.kind === "credit" ? <Selected /> : null}
+            />
+            <Row
+              icon={CreditCard}
+              tone="indigo"
+              title="Cartão de débito"
+              subtitle="Visa, Mastercard, Elo e Cabal · à vista"
+              onClick={() => setChoice({ kind: "debit" })}
+              trailing={choice.kind === "debit" ? <Selected /> : null}
             />
             <Row
               icon={QrCode}
@@ -219,6 +248,30 @@ function CheckoutSheet({
               subtitle="Aprovação na hora · código válido por 30 min"
               onClick={() => setChoice({ kind: "pix" })}
               trailing={choice.kind === "pix" ? <Selected /> : null}
+            />
+            <Row
+              icon={Barcode}
+              tone="orange"
+              title="Boleto bancário"
+              subtitle="Bradesco · vence em 3 dias"
+              onClick={() => setChoice({ kind: "boleto" })}
+              trailing={choice.kind === "boleto" ? <Selected /> : null}
+            />
+            <Row
+              icon={Store}
+              tone="green"
+              title="Lotérica"
+              subtitle="Pague em dinheiro numa casa lotérica"
+              onClick={() => setChoice({ kind: "pec" })}
+              trailing={choice.kind === "pec" ? <Selected /> : null}
+            />
+            <Row
+              icon={Wallet}
+              tone="blue"
+              title="Saldo Mercado Pago"
+              subtitle="Usa o saldo da conta com o mesmo e-mail"
+              onClick={() => setChoice({ kind: "account_money" })}
+              trailing={choice.kind === "account_money" ? <Selected /> : null}
             />
           </Group>
 
@@ -234,14 +287,14 @@ function CheckoutSheet({
             </Group>
           ) : null}
 
-          {choice.kind === "new" && sdk ? (
+          {(choice.kind === "credit" || choice.kind === "debit") && sdk ? (
             <div className="mt-6">
               <CardForm sdk={sdk} holder={holder} onHolder={setHolder} cpf={cpf} onCpf={setCpf} onBin={setBin} />
             </div>
           ) : null}
 
           {card && sdk ? (
-            <Group footer={plan ? (option && option.rate > 0 ? `Com juros do cartão: total de ${brl(option.totalAmount)}.` : undefined) : "Digite o número do cartão para ver as parcelas."}>
+            <Group footer={debit ? "Débito é sempre à vista." : plan ? (option && option.rate > 0 ? `Com juros do cartão: total de ${brl(option.totalAmount)}.` : undefined) : "Digite o número do cartão para ver as parcelas."}>
               {plan ? (
                 <SelectRow
                   label="Parcelas"
@@ -257,6 +310,20 @@ function CheckoutSheet({
 
           {choice.kind === "pix" ? (
             <p className="mt-3 px-4 type-footnote text-muted-foreground">Depois de confirmar, mostramos o QR code e o Pix copia e cola. O pedido vai para a loja assim que o pagamento cair.</p>
+          ) : null}
+          {choice.kind === "boleto" ? (
+            <p className="mt-3 px-4 type-footnote text-muted-foreground">O boleto vence em 3 dias. A loja só recebe o pedido quando o banco compensar, o que pode levar até 2 dias úteis.</p>
+          ) : null}
+          {choice.kind === "pec" ? (
+            <p className="mt-3 px-4 type-footnote text-muted-foreground">Depois de confirmar, mostramos o código para pagar em dinheiro numa casa lotérica. O pedido vai para a loja quando o pagamento cair.</p>
+          ) : null}
+          {choice.kind === "account_money" ? (
+            <p className="mt-3 px-4 type-footnote text-muted-foreground">O Mercado Pago cobra o saldo da conta com este e-mail. Se não houver saldo, o pagamento é recusado.</p>
+          ) : null}
+          {needCpf ? (
+            <Group title="Pagador" footer="O boleto, a lotérica e o saldo do Mercado Pago exigem o CPF do pagador.">
+              <FieldRow label="CPF" inputMode="numeric" placeholder="000.000.000-00" value={formatCpf(cpf)} onChange={(e) => setCpf(e.target.value.replace(/\D/g, "").slice(0, 11))} />
+            </Group>
           ) : null}
 
           {needEmail ? (
@@ -306,6 +373,9 @@ export function ItemScreen({ id }: { id: string }) {
 
   const [start, setStart] = useState(today);
   const [days, setDays] = useState(1);
+  const [asking, setAsking] = useState(false);
+  const [note, setNote] = useState("");
+  const [sending, setSending] = useState(false);
   const [mode, setMode] = useState<Mode>("delivery");
   const [address, setAddress] = useState<Address>(origin);
   const [addressOpen, setAddressOpen] = useState(false);
@@ -321,14 +391,23 @@ export function ItemScreen({ id }: { id: string }) {
   const price = priceOf(item, business, days, effectiveMode, db.config?.serviceFeeRate ?? 0.05);
   const dates = Array.from({ length: 14 }, (_, i) => addDays(today, i));
   const saved = isFavorite(db, item.id);
-  const pix = placed?.status === "awaiting_payment";
+  const waiting = placed?.status === "awaiting_payment";
+  const placedCopy = !waiting
+    ? { title: "Pedido enviado!", message: `${business.name} recebeu o pedido e vai confirmar em breve.`, label: "Acompanhar pedido" }
+    : placed?.payment.method === "boleto"
+      ? { title: "Boleto gerado!", message: "Pague em até 3 dias. A loja recebe o pedido quando o banco compensar.", label: "Ver boleto" }
+      : placed?.payment.method === "pec"
+        ? { title: "Código da lotérica", message: "Pague em uma casa lotérica. O pedido vai para a loja quando o pagamento cair.", label: "Ver código" }
+        : placed?.payment.method === "account_money"
+          ? { title: "Falta confirmar", message: "Autorize o saldo no Mercado Pago para a loja receber o pedido.", label: "Concluir pagamento" }
+          : { title: "Pix gerado!", message: "Pague em até 30 minutos. O pedido vai para a loja assim que o pagamento cair.", label: "Pagar com Pix" };
 
   return (
     <Page
       title={item.name}
       hero={
-        <div className="bg-card">
-          <Img src={item.image} alt={item.name} className="aspect-square w-full" />
+        <div className="bg-card lg:bg-background lg:px-8 lg:pt-2">
+          <Img src={item.image} alt={item.name} className="aspect-square w-full lg:mx-auto lg:aspect-[16/10] lg:max-h-[520px] lg:max-w-5xl lg:rounded-[28px] lg:object-cover" />
         </div>
       }
       actions={
@@ -344,20 +423,59 @@ export function ItemScreen({ id }: { id: string }) {
         </>
       }
       bottomBar={
-        <div className="glass flex items-center gap-3 rounded-full p-2 pl-5">
+        <div className="glass flex items-center gap-3 rounded-full p-2 pl-5 lg:mx-auto lg:max-w-3xl">
           <div className="min-w-0 flex-1">
-            <p className="type-headline tabular-nums">{brl(price.total)}</p>
+            <p className="type-headline tabular-nums">{item.kind === "service" ? brl(item.price) : brl(price.total)}</p>
             <p className="truncate type-footnote text-muted-foreground">
-              {plural(days, "dia", "dias")} · {effectiveMode === "delivery" ? "com entrega" : "retirada"}
-              {price.deposit ? " · caução volta" : ""}
+              {item.kind === "service" ? "serviço com preço combinado na conversa" : `${plural(days, "dia", "dias")} · ${effectiveMode === "delivery" ? "com entrega" : "retirada"}${price.deposit ? " · caução volta" : ""}`}
             </p>
           </div>
-          <Button size="md" disabled={!item.available || preview} onClick={() => setCheckout(true)}>
-            {preview ? "Visualização" : item.available ? "Alugar" : "Indisponível"}
+          <Button
+            size="md"
+            disabled={!item.available || preview}
+            onClick={() => {
+              if (item.kind === "service") {
+                setAsking(true);
+                return;
+              }
+              setCheckout(true);
+            }}
+          >
+            {preview ? "Visualização" : !item.available ? "Indisponível" : item.kind === "service" ? "Pedir orçamento" : "Alugar"}
           </Button>
         </div>
       }
     >
+      <Sheet
+        open={asking}
+        onClose={() => setAsking(false)}
+        title="Pedir orçamento"
+        confirm={{
+          label: "Enviar",
+          loading: sending,
+          onClick: () => {
+            setSending(true);
+            void actions
+              .requestService(item.id, note.trim())
+              .then(() => {
+                toast("Pedido enviado para o profissional");
+                setAsking(false);
+                setNote("");
+              })
+              .catch((error) => toast(errorMessage(error), "error"))
+              .finally(() => setSending(false));
+          },
+        }}
+      >
+        <textarea
+          aria-label="O que você precisa"
+          value={note}
+          maxLength={500}
+          placeholder="Conte o que precisa, o bairro e quando pretende fazer."
+          onChange={(event) => setNote(event.target.value)}
+          className="min-h-28 w-full resize-none bg-transparent type-body outline-none"
+        />
+      </Sheet>
       <div className="relative -mx-4 -mt-8 rounded-t-[34px] bg-background px-4 pt-6">
         <h1 className="type-title1">{item.name}</h1>
         <p className="mt-1.5 flex items-baseline gap-2">
@@ -469,10 +587,10 @@ export function ItemScreen({ id }: { id: string }) {
       />
       <SuccessOverlay
         open={placed !== null}
-        title={pix ? "Pix gerado!" : "Pedido enviado!"}
-        message={pix ? "Pague em até 30 minutos. O pedido vai para a loja assim que o pagamento cair." : `${business.name} recebeu o pedido e vai confirmar em breve.`}
+        title={placedCopy.title}
+        message={placedCopy.message}
         primary={{
-          label: pix ? "Pagar com Pix" : "Acompanhar pedido",
+          label: placedCopy.label,
           onClick: () => {
             const order = placed;
             setPlaced(null);
@@ -480,7 +598,7 @@ export function ItemScreen({ id }: { id: string }) {
           },
         }}
         secondary={
-          pix
+          waiting
             ? undefined
             : {
                 label: "Continuar explorando",

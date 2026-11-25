@@ -13,7 +13,11 @@ export type GatewayPayment = {
   installments: number;
   card: { firstSix: string | null; lastFour: string | null } | null;
   refundedAmount: number;
+  /** When Mercado Pago releases the money into the receiving account. */
+  releaseAt: Date | null;
   pix: { qrCode: string; qrCodeBase64: string; ticketUrl: string | null; expiresAt: Date } | null;
+  /** Boleto, lotérica or a Mercado Pago balance confirmation that is still pending. */
+  ticket: { barcode: string | null; url: string | null; expiresAt: Date | null } | null;
 };
 
 export type InstallmentOption = { installments: number; installmentAmount: number; totalAmount: number; rate: number; label: string };
@@ -51,25 +55,56 @@ export type CardPaymentInput = {
   installments: number;
   payer: Payer;
   item: { id: string; title: string };
+  /** Seller OAuth token. When set, the payment is created in that store's Mercado Pago account. */
+  sellerToken?: string | null;
+  /** Platform commission, in reais, kept by Obi Ágil. Only sent with a seller token. */
+  applicationFee?: number;
 };
 
-export type PixPaymentInput = { amount: number; description: string; orderId: string; payer: Payer; expiresAt: Date; item: { id: string; title: string } };
+export type OfflineMethod = "pix" | "boleto" | "pec" | "account_money";
+
+export type OfflinePaymentInput = {
+  amount: number;
+  description: string;
+  orderId: string;
+  payer: Payer;
+  /** Null for a Mercado Pago balance charge, which is approved or refused immediately. */
+  expiresAt: Date | null;
+  item: { id: string; title: string };
+  method: OfflineMethod;
+  sellerToken?: string | null;
+  applicationFee?: number;
+};
+
+const offlineIds: Record<OfflineMethod, string> = {
+  pix: "pix",
+  boleto: "bolbradesco",
+  pec: "pec",
+  account_money: "account_money",
+};
+
+export function offlineLabel(method: OfflineMethod) {
+  if (method === "pix") return "Pix";
+  if (method === "boleto") return "Boleto";
+  if (method === "pec") return "Lotérica";
+  return "Saldo Mercado Pago";
+}
 
 export interface Gateway {
   readonly enabled: boolean;
   readonly publicKey: string | null;
-  installments(amount: number, bin: string): Promise<Installments>;
+  installments(amount: number, bin: string, paymentType?: "credit_card" | "debit_card"): Promise<Installments>;
   ensureCustomer(email: string, name: string): Promise<string>;
   saveCard(customerId: string, token: string): Promise<SavedCard>;
   deleteCard(customerId: string, cardId: string): Promise<void>;
   createCardPayment(input: CardPaymentInput): Promise<GatewayPayment>;
-  createPixPayment(input: PixPaymentInput): Promise<GatewayPayment>;
-  getPayment(id: string): Promise<GatewayPayment>;
+  createOfflinePayment(input: OfflinePaymentInput): Promise<GatewayPayment>;
+  getPayment(id: string, sellerToken?: string | null): Promise<GatewayPayment>;
   /** Latest payment created for an order, used when the payment id never reached our database. */
-  findByReference(orderId: string): Promise<GatewayPayment | null>;
-  cancelPayment(id: string): Promise<void>;
+  findByReference(orderId: string, sellerToken?: string | null): Promise<GatewayPayment | null>;
+  cancelPayment(id: string, sellerToken?: string | null): Promise<void>;
   /** amount null refunds everything that is left. */
-  refund(id: string, amount: number | null): Promise<void>;
+  refund(id: string, amount: number | null, sellerToken?: string | null): Promise<void>;
 }
 
 /** Thrown when Mercado Pago answers with an error. */
@@ -94,7 +129,11 @@ const brands: Record<string, string> = {
   debvisa: "Visa Débito",
   debmaster: "Mastercard Débito",
   debelo: "Elo Débito",
+  debcabal: "Cabal Débito",
   pix: "Pix",
+  bolbradesco: "Boleto",
+  pec: "Lotérica",
+  account_money: "Saldo Mercado Pago",
 };
 
 export function brandName(paymentMethodId: string | null) {
@@ -128,7 +167,7 @@ export function rejectionMessage(detail: string | null) {
     cc_rejected_blacklist: "O pagamento foi recusado. Tente outro cartão ou Pix.",
     cc_rejected_card_error: "O cartão não pôde ser processado. Tente outro.",
   };
-  return (detail && messages[detail]) || "O pagamento não foi aprovado. Tente outro cartão ou Pix.";
+  return (detail && messages[detail]) || "O pagamento não foi aprovado. Tente outro cartão, Pix, boleto ou o saldo do Mercado Pago.";
 }
 
 /** Mercado Pago wants local Brasília time with offset, e.g. 2026-11-11T12:00:00.000-03:00. */
@@ -144,10 +183,21 @@ type MpPayment = {
   payment_method_id: string | null;
   installments: number | null;
   transaction_amount_refunded?: number;
+  money_release_date?: string | null;
   card?: { first_six_digits?: string | null; last_four_digits?: string | null } | null;
   date_of_expiration?: string | null;
+  barcode?: { content?: string | null } | null;
+  transaction_details?: { external_resource_url?: string | null; payment_method_reference_id?: string | null } | null;
   point_of_interaction?: { transaction_data?: { qr_code?: string; qr_code_base64?: string; ticket_url?: string } };
 };
+
+/** Used when Mercado Pago does not send money_release_date. Credit waits 14 days, boleto 3, Pix and debit are immediate. */
+export function releaseDate(kind: string | null): Date {
+  const id = kind ?? "credit_card";
+  if (id === "pix" || id === "account_money" || id.startsWith("deb")) return new Date();
+  if (id === "boleto" || id === "bolbradesco" || id === "pec") return new Date(Date.now() + 3 * 86_400_000);
+  return new Date(Date.now() + 14 * 86_400_000);
+}
 
 function mapStatus(status: string): GatewayStatus {
   if (status === "approved" || status === "authorized") return "approved";
@@ -158,7 +208,17 @@ function mapStatus(status: string): GatewayStatus {
 }
 
 function fromMp(payment: MpPayment): GatewayPayment {
-  const pix = payment.point_of_interaction?.transaction_data;
+  const data = payment.point_of_interaction?.transaction_data;
+  const pix =
+    payment.payment_method_id === "pix" && data?.qr_code && payment.date_of_expiration
+      ? { qrCode: data.qr_code, qrCodeBase64: data.qr_code_base64 ?? "", ticketUrl: data.ticket_url ?? null, expiresAt: new Date(payment.date_of_expiration) }
+      : null;
+  const barcode = payment.barcode?.content ?? payment.transaction_details?.payment_method_reference_id ?? null;
+  const url = payment.transaction_details?.external_resource_url ?? (payment.payment_method_id === "pix" ? null : data?.ticket_url) ?? null;
+  const ticket =
+    !pix && (barcode || url || payment.date_of_expiration)
+      ? { barcode, url, expiresAt: payment.date_of_expiration ? new Date(payment.date_of_expiration) : null }
+      : null;
   return {
     id: String(payment.id),
     status: mapStatus(payment.status),
@@ -168,10 +228,9 @@ function fromMp(payment: MpPayment): GatewayPayment {
     installments: payment.installments ?? 1,
     card: payment.card ? { firstSix: payment.card.first_six_digits ?? null, lastFour: payment.card.last_four_digits ?? null } : null,
     refundedAmount: payment.transaction_amount_refunded ?? 0,
-    pix:
-      pix?.qr_code && payment.date_of_expiration
-        ? { qrCode: pix.qr_code, qrCodeBase64: pix.qr_code_base64 ?? "", ticketUrl: pix.ticket_url ?? null, expiresAt: new Date(payment.date_of_expiration) }
-        : null,
+    releaseAt: payment.money_release_date ? new Date(payment.money_release_date) : releaseDate(payment.payment_method_id),
+    pix,
+    ticket,
   };
 }
 
@@ -193,12 +252,12 @@ class MercadoPagoGateway implements Gateway {
   readonly enabled = config.mercadoPago !== null;
   readonly publicKey = config.mercadoPago?.publicKey ?? null;
 
-  private async call<T>(method: string, path: string, body?: unknown, idempotent = false): Promise<T> {
+  private async call<T>(method: string, path: string, body?: unknown, idempotent = false, sellerToken?: string | null): Promise<T> {
     if (!config.mercadoPago) throw unavailable("payments_unavailable", "Pagamentos ainda não estão configurados.");
     const response = await fetch(`https://api.mercadopago.com${path}`, {
       method,
       headers: {
-        Authorization: `Bearer ${config.mercadoPago.accessToken}`,
+        Authorization: `Bearer ${sellerToken || config.mercadoPago.accessToken}`,
         "Content-Type": "application/json",
         ...(idempotent ? { "X-Idempotency-Key": randomUUID() } : {}),
       },
@@ -210,8 +269,8 @@ class MercadoPagoGateway implements Gateway {
     return data as T;
   }
 
-  async installments(amount: number, bin: string): Promise<Installments> {
-    const params = new URLSearchParams({ amount: amount.toFixed(2), bin, payment_type_id: "credit_card" });
+  async installments(amount: number, bin: string, paymentType: "credit_card" | "debit_card" = "credit_card"): Promise<Installments> {
+    const params = new URLSearchParams({ amount: amount.toFixed(2), bin, payment_type_id: paymentType });
     const list = await this.call<
       {
         payment_method_id: string;
@@ -221,7 +280,13 @@ class MercadoPagoGateway implements Gateway {
       }[]
     >("GET", `/v1/payment_methods/installments?${params}`);
     const first = list[0];
-    if (!first) throw new HttpError(422, "card_not_supported", "Não reconhecemos esse cartão. Confira o número.");
+    if (!first) {
+      throw new HttpError(
+        422,
+        "card_not_supported",
+        paymentType === "debit_card" ? "Esse número não é de um cartão de débito." : "Não reconhecemos esse cartão. Confira o número.",
+      );
+    }
     return {
       paymentMethodId: first.payment_method_id,
       brand: brandName(first.payment_method_id),
@@ -293,6 +358,7 @@ class MercadoPagoGateway implements Gateway {
         external_reference: input.orderId,
         notification_url: notificationUrl(),
         statement_descriptor: "OBRA AGIL",
+        ...(input.sellerToken && input.applicationFee ? { application_fee: input.applicationFee } : {}),
         binary_mode: true,
         metadata: { order_id: input.orderId },
         additional_info: {
@@ -301,46 +367,49 @@ class MercadoPagoGateway implements Gateway {
         },
       },
       true,
+      input.sellerToken,
     );
     return fromMp(payment);
   }
 
-  async createPixPayment(input: PixPaymentInput) {
+  async createOfflinePayment(input: OfflinePaymentInput) {
     const payment = await this.call<MpPayment>(
       "POST",
       "/v1/payments",
       {
         transaction_amount: input.amount,
         description: input.description,
-        payment_method_id: "pix",
+        payment_method_id: offlineIds[input.method],
         payer: payerBody({ ...input.payer, customerId: null }),
         external_reference: input.orderId,
         notification_url: notificationUrl(),
-        date_of_expiration: mpDate(input.expiresAt),
+        ...(input.expiresAt ? { date_of_expiration: mpDate(input.expiresAt) } : {}),
+        ...(input.sellerToken && input.applicationFee ? { application_fee: input.applicationFee } : {}),
         metadata: { order_id: input.orderId },
         additional_info: { items: [{ id: input.item.id, title: input.item.title, quantity: 1, unit_price: input.amount, category_id: "others" }] },
       },
       true,
+      input.sellerToken,
     );
     return fromMp(payment);
   }
 
-  async getPayment(id: string) {
-    return fromMp(await this.call<MpPayment>("GET", `/v1/payments/${encodeURIComponent(id)}`));
+  async getPayment(id: string, sellerToken?: string | null) {
+    return fromMp(await this.call<MpPayment>("GET", `/v1/payments/${encodeURIComponent(id)}`, undefined, false, sellerToken));
   }
 
-  async findByReference(orderId: string) {
+  async findByReference(orderId: string, sellerToken?: string | null) {
     const params = new URLSearchParams({ external_reference: orderId, sort: "date_created", criteria: "desc", limit: "1" });
-    const found = await this.call<{ results: MpPayment[] }>("GET", `/v1/payments/search?${params}`);
+    const found = await this.call<{ results: MpPayment[] }>("GET", `/v1/payments/search?${params}`, undefined, false, sellerToken);
     return found.results[0] ? fromMp(found.results[0]) : null;
   }
 
-  async cancelPayment(id: string) {
-    await this.call("PUT", `/v1/payments/${encodeURIComponent(id)}`, { status: "cancelled" });
+  async cancelPayment(id: string, sellerToken?: string | null) {
+    await this.call("PUT", `/v1/payments/${encodeURIComponent(id)}`, { status: "cancelled" }, false, sellerToken);
   }
 
-  async refund(id: string, amount: number | null) {
-    await this.call("POST", `/v1/payments/${encodeURIComponent(id)}/refunds`, amount === null ? {} : { amount }, true);
+  async refund(id: string, amount: number | null, sellerToken?: string | null) {
+    await this.call("POST", `/v1/payments/${encodeURIComponent(id)}/refunds`, amount === null ? {} : { amount }, true, sellerToken);
   }
 }
 
@@ -352,7 +421,12 @@ class FakeGateway implements Gateway {
   /** orders.mp_payment_id is unique, so ids must not repeat after a restart. */
   private sequence = Date.now();
 
-  async installments(amount: number, bin: string): Promise<Installments> {
+  async installments(amount: number, bin: string, paymentType: "credit_card" | "debit_card" = "credit_card"): Promise<Installments> {
+    if (paymentType === "debit_card") {
+      const paymentMethodId = bin.startsWith("4") ? "debvisa" : "debmaster";
+      const option = { installments: 1, installmentAmount: amount, totalAmount: amount, rate: 0 };
+      return { paymentMethodId, brand: brandName(paymentMethodId), paymentTypeId: "debit_card", issuerId: "1", issuerName: "Banco Teste", options: [{ ...option, label: installmentLabel(option) }] };
+    }
     const options = Array.from({ length: 12 }, (_, i) => {
       const n = i + 1;
       const rate = n <= 6 ? 0 : 1.99 * (n - 6);
@@ -392,50 +466,94 @@ class FakeGateway implements Gateway {
         installments: input.installments,
         card: { firstSix: "503143", lastFour: input.token.match(/(\d{4})/)?.[1] ?? "6351" },
         refundedAmount: 0,
+        releaseAt: releaseDate(input.paymentMethodId),
         pix: null,
+        ticket: null,
       },
       input.amount,
     );
   }
 
-  async createPixPayment(input: PixPaymentInput) {
+  async createOfflinePayment(input: OfflinePaymentInput) {
     const id = String(++this.sequence);
-    const qrCode = `00020126580014br.gov.bcb.pix-test-${id}`;
-    // qrcode is a dev dependency, which is fine because the fake gateway only exists with NODE_ENV=test.
-    const { default: QRCode } = await import("qrcode");
-    const qrCodeBase64 = (await QRCode.toDataURL(qrCode, { margin: 1, width: 440 })).split(",")[1];
+    if (input.method === "account_money") {
+      return this.store(
+        {
+          id,
+          status: "approved",
+          statusDetail: "accredited",
+          externalReference: input.orderId,
+          paymentMethodId: "account_money",
+          installments: 1,
+          card: null,
+          refundedAmount: 0,
+          releaseAt: releaseDate(input.method),
+          pix: null,
+          ticket: null,
+        },
+        input.amount,
+      );
+    }
+    if (input.method === "pix") {
+      const qrCode = `00020126580014br.gov.bcb.pix-test-${id}`;
+      const { default: QRCode } = await import("qrcode");
+      const qrCodeBase64 = (await QRCode.toDataURL(qrCode, { margin: 1, width: 440 })).split(",")[1];
+      return this.store(
+        {
+          id,
+          status: "pending",
+          statusDetail: "pending_waiting_transfer",
+          externalReference: input.orderId,
+          paymentMethodId: "pix",
+          installments: 1,
+          card: null,
+          refundedAmount: 0,
+          releaseAt: releaseDate(input.method),
+          pix: { qrCode, qrCodeBase64, ticketUrl: null, expiresAt: input.expiresAt ?? new Date(Date.now() + 31 * 60_000) },
+          ticket: null,
+        },
+        input.amount,
+      );
+    }
+    const barcode = `23793${id.padStart(39, "0")}`;
     return this.store(
       {
         id,
         status: "pending",
-        statusDetail: "pending_waiting_transfer",
+        statusDetail: "pending_waiting_payment",
         externalReference: input.orderId,
-        paymentMethodId: "pix",
+        paymentMethodId: offlineIds[input.method],
         installments: 1,
         card: null,
         refundedAmount: 0,
-        pix: { qrCode, qrCodeBase64, ticketUrl: null, expiresAt: input.expiresAt },
+        releaseAt: releaseDate(input.method),
+        pix: null,
+        ticket: {
+          barcode,
+          url: `https://www.mercadopago.com.br/payments/${id}/ticket`,
+          expiresAt: input.expiresAt,
+        },
       },
       input.amount,
     );
   }
 
-  async getPayment(id: string) {
+  async getPayment(id: string, _sellerToken?: string | null) {
     const payment = this.payments.get(id);
     if (!payment) throw new GatewayError(404, { message: "not found" });
     return payment;
   }
 
-  async findByReference(orderId: string) {
+  async findByReference(orderId: string, _sellerToken?: string | null) {
     return [...this.payments.values()].reverse().find((payment) => payment.externalReference === orderId) ?? null;
   }
 
-  async cancelPayment(id: string) {
+  async cancelPayment(id: string, _sellerToken?: string | null) {
     const payment = await this.getPayment(id);
     if (payment.status === "pending") this.payments.set(id, { ...this.payments.get(id)!, status: "cancelled" });
   }
 
-  async refund(id: string, amount: number | null) {
+  async refund(id: string, amount: number | null, _sellerToken?: string | null) {
     const payment = this.payments.get(id);
     if (!payment) throw new GatewayError(404, { message: "not found" });
     const refunded = Math.round((payment.refundedAmount + (amount ?? payment.amount - payment.refundedAmount)) * 100) / 100;

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BatteryFull, Signal, Wifi } from "lucide-react";
 import { clock } from "./lib/format.ts";
 import { actions, useDB } from "./lib/store.ts";
+import { toast } from "./lib/toast.ts";
 import { Onboarding } from "./screens/auth/Onboarding.tsx";
 import { ResetPassword } from "./screens/auth/ResetPassword.tsx";
 import { BusinessApp } from "./screens/business/BusinessApp.tsx";
@@ -17,7 +18,7 @@ function DeviceChrome() {
     return () => window.clearInterval(timer);
   }, []);
   return (
-    <div aria-hidden="true" className="vt-chrome pointer-events-none absolute inset-0 z-[95] hidden md:block">
+    <div aria-hidden="true" className="vt-chrome pointer-events-none absolute inset-0 z-[95] hidden md:block lg:hidden">
       <div className="absolute inset-x-0 top-0 flex h-[50px] items-center justify-between px-[34px] pt-1">
         <span className="w-[86px] text-center text-[16px] font-semibold tabular-nums">{time}</span>
         <span className="flex items-center gap-1.5">
@@ -36,7 +37,7 @@ function Splash() {
   return (
     <main className="absolute inset-0 flex flex-col items-center justify-center bg-background" aria-busy="true">
       <Mascot mood="idle" size={120} />
-      <p className="mt-2 type-title2">Obra Ágil</p>
+      <p className="mt-2 type-title2">Obi Ágil</p>
       <Spinner className="mt-5 size-6 text-primary" />
     </main>
   );
@@ -48,7 +49,7 @@ function Offline() {
     <main className="absolute inset-0 flex flex-col items-center justify-center bg-background px-8 text-center">
       <Mascot mood="sad" size={124} />
       <h1 className="mt-4 type-title2">Sem conexão</h1>
-      <p className="mt-1.5 max-w-[290px] type-subhead text-muted-foreground">Não conseguimos falar com o servidor do Obra Ágil. Confira a internet e tente de novo.</p>
+      <p className="mt-1.5 max-w-[290px] type-subhead text-muted-foreground">Não conseguimos falar com o servidor do Obi Ágil. Confira a internet e tente de novo.</p>
       <Button
         className="mt-6 max-w-[260px]"
         loading={retrying}
@@ -72,6 +73,17 @@ export default function App() {
   useEffect(() => {
     void actions.boot();
   }, []);
+
+  useEffect(() => {
+    if (db.phase === "booting") return;
+    const params = new URLSearchParams(window.location.search);
+    const mp = params.get("mp");
+    if (!mp) return;
+    params.delete("mp");
+    const next = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${next ? `?${next}` : ""}`);
+    toast(mp === "connected" ? "Mercado Pago conectado. Os pagamentos caem na sua conta." : "Não foi possível conectar o Mercado Pago.", mp === "connected" ? "success" : "error");
+  }, [db.phase]);
 
   useEffect(() => {
     const onBack = () => {

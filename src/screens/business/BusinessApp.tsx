@@ -8,6 +8,7 @@ import { ChatScreen } from "../shared/Chat.tsx";
 import { OrderScreen } from "../shared/OrderScreen.tsx";
 import { EditProfileScreen, ProfileScreen } from "../shared/Profile.tsx";
 import { Dashboard } from "./Dashboard.tsx";
+import { FinanceScreen } from "./Finance.tsx";
 import { Inventory } from "./Inventory.tsx";
 import { Requests } from "./Requests.tsx";
 import { StoreScreen } from "./StoreScreen.tsx";
@@ -23,6 +24,8 @@ function render(route: Route) {
       return <Requests />;
     case "store":
       return <StoreScreen />;
+    case "finance":
+      return <FinanceScreen />;
     case "order":
       return <OrderScreen id={id} />;
     case "chat":
@@ -49,5 +52,5 @@ export function BusinessApp() {
     { id: "requests", label: "Pedidos", icon: Inbox, badge: pending || undefined },
     { id: "store", label: "Loja", icon: Store },
   ];
-  return <Shell tabs={tabs} render={render} hideTabBar={(route) => route.name === "item" || route.name === "chat"} />;
+  return <Shell layout="saas" tabs={tabs} render={render} hideTabBar={(route) => route.name === "item" || route.name === "chat"} />;
 }

@@ -25,7 +25,7 @@ export function MapTab() {
   const current = selected ?? near[0]?.business.id ?? null;
 
   useEffect(() => {
-    if (active) document.title = "Mapa · Obra Ágil";
+    if (active) document.title = "Mapa · Obi Ágil";
   }, [active]);
 
   const markers = useMemo<MapMarker[]>(
@@ -47,6 +47,7 @@ export function MapTab() {
   }
 
   function onCardsScroll() {
+    if (window.matchMedia("(min-width: 1024px)").matches) return;
     window.clearTimeout(scrollTimer.current);
     scrollTimer.current = window.setTimeout(() => {
       const box = cardsRef.current;
@@ -102,8 +103,8 @@ export function MapTab() {
         type="button"
         aria-label="Voltar para o meu endereço"
         onClick={() => mapRef.current?.recenter()}
-        className="glass absolute right-3 z-10 grid size-11 cursor-pointer place-items-center rounded-full text-primary transition-transform active:scale-90"
-        style={{ bottom: "calc(max(10px, var(--safe-bottom)) + 236px)" }}
+        className="glass absolute right-3 z-10 grid size-11 cursor-pointer place-items-center rounded-full text-primary transition-transform active:scale-90 lg:!right-5 lg:!bottom-5"
+        style={{ bottom: "calc(max(10px, var(--safe-bottom)) + 162px + var(--dock))" }}
       >
         <LocateFixed className="size-[21px]" aria-hidden="true" />
       </button>
@@ -111,8 +112,8 @@ export function MapTab() {
       <div
         ref={cardsRef}
         onScroll={onCardsScroll}
-        className="absolute inset-x-0 z-10 flex snap-x snap-mandatory gap-3 overflow-x-auto px-[7%] pb-2"
-        style={{ bottom: "calc(max(10px, var(--safe-bottom)) + 74px)" }}
+        className="map-sheet absolute inset-x-0 z-10 flex snap-x snap-mandatory gap-3 overflow-x-auto px-[7%] pb-2"
+        style={{ bottom: "calc(max(10px, var(--safe-bottom)) + var(--dock))" }}
       >
         {near.map(({ business, km }) => {
           const isSelected = business.id === current;
@@ -122,8 +123,8 @@ export function MapTab() {
               data-id={business.id}
               type="button"
               onClick={() => nav.push("business", { id: business.id })}
-              className={`glass-strong flex w-[86%] shrink-0 cursor-pointer snap-center items-center gap-3 rounded-[26px] p-2.5 pr-4 text-left transition-transform duration-300 active:scale-[0.98] ${
-                isSelected ? "scale-100" : "scale-[0.96] opacity-90"
+              className={`glass-strong flex w-[86%] shrink-0 cursor-pointer snap-center items-center gap-3 rounded-[26px] p-2.5 pr-4 text-left transition-transform duration-300 active:scale-[0.98] lg:w-full ${
+                isSelected ? "scale-100" : "scale-[0.96] opacity-90 lg:scale-100 lg:opacity-100"
               }`}
             >
               <Img src={business.cover} alt="" className="size-[92px] shrink-0 rounded-[20px]" />

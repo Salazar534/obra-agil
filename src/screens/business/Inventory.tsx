@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { errorMessage } from "../../lib/api.ts";
-import { categories, equipment, library, type CategoryId } from "../../lib/catalog.ts";
+import { categories, equipment, library } from "../../lib/catalog.ts";
 import { chime } from "../../lib/feedback.ts";
 import { brlShort, fold, plural } from "../../lib/format.ts";
 import { actions, retry, useDB } from "../../lib/store.ts";
@@ -41,7 +41,7 @@ function money(value: number) {
 function ItemEditor({ open, item, onClose, onSaved }: { open: boolean; item: Item | null; onClose: () => void; onSaved: (first: boolean) => void }) {
   const storeCategory = useDB().business?.category ?? "ferramentas";
   const [name, setName] = useState("");
-  const [category, setCategory] = useState<CategoryId>(storeCategory);
+  const [category, setCategory] = useState<string>(storeCategory);
   const [price, setPrice] = useState("");
   const [deposit, setDeposit] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -50,6 +50,12 @@ function ItemEditor({ open, item, onClose, onSaved }: { open: boolean; item: Ite
   const [spec, setSpec] = useState("");
   const [image, setImage] = useState("");
   const [available, setAvailable] = useState(true);
+  const [listingKind, setListingKind] = useState<"product" | "service">("product");
+  const [templateId, setTemplateId] = useState<string | null>(null);
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [catalogName, setCatalogName] = useState("");
+  const [hits, setHits] = useState<{ id: string; name: string; description: string; image: string | null; categoryId: string; category: string }[]>([]);
+  const [picked, setPicked] = useState<{ id: string; name: string; description: string; image: string | null; categoryId: string; category: string }[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -65,7 +71,21 @@ function ItemEditor({ open, item, onClose, onSaved }: { open: boolean; item: Ite
     setSpec("");
     setImage(item?.image ?? "");
     setAvailable(item?.available ?? true);
+    setListingKind(item?.kind ?? "product");
+    setTemplateId(null);
+    setCatalogQuery("");
+    setCatalogName("");
+    setHits([]);
+    setPicked([]);
   }, [open, item, storeCategory]);
+
+  useEffect(() => {
+    if (!open || catalogQuery.trim().length < 2) return;
+    const timer = window.setTimeout(() => {
+      void actions.catalog({ q: catalogQuery, kind: listingKind }).then((data) => setHits(data.templates)).catch(() => setHits([]));
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [catalogQuery, listingKind, open]);
 
   const priceValue = parseMoney(price);
   const valid = name.trim().length >= 3 && priceValue > 0 && image !== "";
@@ -94,6 +114,9 @@ function ItemEditor({ open, item, onClose, onSaved }: { open: boolean; item: Ite
         id: item?.id,
         name: name.trim(),
         category,
+        kind: listingKind,
+        priceUnit: listingKind === "service" ? "fixed" : "day",
+        templateId,
         price: priceValue,
         deposit: parseMoney(deposit),
         description: description.trim(),
@@ -115,20 +138,103 @@ function ItemEditor({ open, item, onClose, onSaved }: { open: boolean; item: Ite
 
   return (
     <Sheet open={open} onClose={onClose} title={item ? "Editar item" : "Novo item"} large confirm={{ label: "Salvar item", onClick: () => void save(), disabled: !valid, loading: saving }}>
-      <ImagePicker value={image} onChange={pickImage} library={library} kind="item" label="Foto do equipamento" />
+      <Segmented
+        label="Tipo do anúncio"
+        value={listingKind}
+        onChange={setListingKind}
+        options={[
+          { value: "product", label: "Produto" },
+          { value: "service", label: "Serviço" },
+        ]}
+      />
+      <div className="mt-4">
+        <SearchField value={catalogQuery} onChange={setCatalogQuery} placeholder={listingKind === "service" ? "Encanador, corte, faxina…" : "Furadeira, vestido, bicicleta…"} />
+        {hits.length ? (
+          <div className="mt-2 overflow-hidden rounded-[22px] bg-card">
+            {hits.map((hit) => (
+              <button
+                key={hit.id}
+                type="button"
+                aria-pressed={picked.some((item) => item.id === hit.id)}
+                className={`flex w-full items-center gap-3 border-b border-separator px-4 py-3 text-left last:border-b-0 ${picked.some((item) => item.id === hit.id) ? "bg-primary/10" : ""}`}
+                onClick={() => {
+                  const next = picked.some((item) => item.id === hit.id) ? picked.filter((item) => item.id !== hit.id) : [...picked, hit];
+                  setPicked(next);
+                  const only = next.length === 1 ? next[0] : hit;
+                  setName(only.name);
+                  setDescription(only.description);
+                  setCategory(only.categoryId);
+                  setCatalogName(only.category);
+                  setTemplateId(only.id);
+                  if (only.image) setImage(only.image);
+                }}
+              >
+                <span className="min-w-0">
+                  <span className="block type-subhead">{hit.name}</span>
+                  <span className="block type-footnote text-muted-foreground">{hit.category}{hit.image ? "" : " · envie a sua foto"}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {picked.length > 1 ? (
+          <Button
+            className="mt-2"
+            loading={saving}
+            onClick={() => {
+              if (priceValue <= 0) return toast("Informe o preço para adicionar os selecionados", "error");
+              if (picked.some((hit) => !hit.image && !image)) return toast("Escolha uma foto para os modelos que ainda não têm imagem", "error");
+              setSaving(true);
+              void (async () => {
+                try {
+                  for (const hit of picked) {
+                    await actions.saveItem({
+                      name: hit.name,
+                      category: hit.categoryId,
+                      kind: listingKind,
+                      priceUnit: listingKind === "service" ? "fixed" : "day",
+                      templateId: hit.id,
+                      price: priceValue,
+                      deposit: parseMoney(deposit),
+                      description: hit.description,
+                      specs: [],
+                      image: hit.image || image,
+                      quantity: 1,
+                      available: true,
+                    });
+                  }
+                  toast(`${picked.length} anúncios adicionados`);
+                  onClose();
+                  onSaved(false);
+                } catch (error) {
+                  toast(errorMessage(error), "error");
+                } finally {
+                  setSaving(false);
+                }
+              })();
+            }}
+          >
+            Adicionar {picked.length} selecionados
+          </Button>
+        ) : null}
+      </div>
+      <ImagePicker value={image} onChange={pickImage} library={library} kind="item" label={listingKind === "service" ? "Foto do serviço" : "Foto do item"} />
       <Group>
         <FieldRow label="Nome" value={name} placeholder="Ex.: Betoneira 400 L" maxLength={80} onChange={(e) => setName(e.target.value)} />
         <SelectRow
           label="Categoria"
           value={category}
-          options={categories.map((c) => ({ value: c.id, label: c.label }))}
+          options={(categories.some((c) => c.id === category) ? categories : [{ id: category, label: catalogName || category }, ...categories]).map((c) => ({
+            value: c.id,
+            label: c.label,
+          }))}
           onChange={(value) => {
-            const next = value as CategoryId;
+            const next = value;
             setCategory(next);
             if (!image || library.some((l) => l.src === image)) setImage(categories.find((c) => c.id === next)?.image ?? image);
           }}
         />
-        <FieldRow label="Preço/dia" prefix="R$" inputMode="decimal" value={price} placeholder="0,00" onChange={(e) => setPrice(e.target.value)} />
+        <FieldRow label={listingKind === "service" ? "Preço" : "Preço/dia"} prefix="R$" inputMode="decimal" value={price} placeholder="0,00" onChange={(e) => setPrice(e.target.value)} />
         <FieldRow label="Caução" prefix="R$" inputMode="decimal" value={deposit} placeholder="0,00" onChange={(e) => setDeposit(e.target.value)} />
         <Row title="Quantidade" value={`${quantity} un.`} trailing={<Stepper value={quantity} onChange={setQuantity} min={1} max={200} label="quantidade" />} />
       </Group>
@@ -278,9 +384,9 @@ export function Inventory() {
             ]}
           />
           {shown.length ? (
-            <Group className="mt-4">
-              {shown.map((item) => (
-                <div key={item.id} className="row flex w-full items-center pl-3">
+            <div className="mt-4 overflow-hidden rounded-[22px] bg-card lg:grid lg:grid-cols-2 lg:gap-3 lg:overflow-visible lg:bg-transparent">
+              {shown.map((item, index) => (
+                <div key={item.id} className={`row flex w-full items-center bg-card pl-3 ${index ? "border-t border-border lg:border-t-0" : ""} lg:overflow-hidden lg:rounded-[22px]`}>
                   <div className="row-main flex min-h-[86px] min-w-0 flex-1 items-center gap-3 pr-4">
                     <button
                       type="button"
@@ -309,7 +415,7 @@ export function Inventory() {
                   </div>
                 </div>
               ))}
-            </Group>
+            </div>
           ) : (
             <EmptyState mood="think" title="Nada por aqui" text="Mude o filtro ou a busca." />
           )}

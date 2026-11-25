@@ -5,6 +5,7 @@ import { OrderCard } from "../../ui/cards.tsx";
 import { Button, EmptyState, Segmented, Spinner } from "../../ui/controls.tsx";
 import { Page } from "../../ui/Page.tsx";
 import { ProfileButton } from "../shared/Profile.tsx";
+import { ServiceQuotes } from "../shared/ServiceQuotes.tsx";
 
 export function OrdersScreen() {
   const db = useDB();
@@ -26,8 +27,9 @@ export function OrdersScreen() {
           { value: "past", label: "Histórico" },
         ]}
       />
+      <ServiceQuotes role="customer" />
       {list.length ? (
-        <div className="mt-4 flex flex-col gap-3">
+        <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
           {list.map((order, index) => (
             <div key={order.id} className="anim-rise" style={{ animationDelay: `${index * 50}ms` }}>
               <OrderCard order={order} title={order.item.name} subtitle={order.business.name} onClick={() => nav.push("order", { id: order.id })} />

@@ -106,6 +106,7 @@
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --dock: 74px;
   color-scheme: light;
 }
 
@@ -113,6 +114,14 @@
   :root {
     --safe-top: 50px;
     --safe-bottom: 22px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --safe-top: 0px;
+    --safe-bottom: 0px;
+    --dock: 16px;
   }
 }
 
@@ -234,7 +243,7 @@ a {
   transform: translateZ(0);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 768px) and (max-width: 1023px) {
   .device {
     width: 393px;
     height: min(852px, calc(100dvh - 48px));
@@ -244,6 +253,42 @@ a {
       0 0 0 12.5px #3a3a3e,
       0 50px 90px -30px rgb(15 23 42 / 0.5),
       0 20px 40px -20px rgb(15 23 42 / 0.35);
+  }
+}
+
+@media (min-width: 1024px) {
+  .device {
+    width: 100%;
+    height: 100dvh;
+    border-radius: 0;
+  }
+}
+
+.stage {
+  position: relative;
+  height: 100%;
+  min-width: 0;
+  transform: translateZ(0);
+  overflow: hidden;
+}
+
+@media (min-width: 1024px) {
+  .map-sheet {
+    top: 80px !important;
+    right: auto !important;
+    bottom: 16px !important;
+    left: 16px !important;
+    width: 360px !important;
+    flex-direction: column;
+    overflow-y: auto;
+    padding-inline: 0;
+  }
+
+  .stage-saas {
+    height: calc(100% - 24px);
+    margin: 12px 12px 12px 0;
+    border-radius: 28px;
+    box-shadow: 0 24px 50px -28px rgb(16 19 26 / 0.45);
   }
 }
 
@@ -832,7 +877,7 @@ a {
 ::view-transition-group(page) {
   overflow: clip;
 }
-@media (min-width: 768px) {
+@media (min-width: 768px) and (max-width: 1023px) {
   ::view-transition-group(page) {
     border-radius: 56px;
   }

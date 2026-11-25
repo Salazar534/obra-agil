@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { seedCatalog } from "../catalog/seed.ts";
 import { pool } from "./pool.ts";
 
 const dir = join(import.meta.dirname, "migrations");
@@ -28,6 +29,7 @@ export async function migrate(log: (message: string) => void = console.log) {
         throw new Error(`migration ${file} failed: ${error instanceof Error ? error.message : error}`, { cause: error });
       }
     }
+    await seedCatalog(client);
   } finally {
     await client.query("select pg_advisory_unlock($1)", [LOCK]).catch(() => {});
     client.release();

@@ -14,7 +14,7 @@ export function ResetPassword({ token, onDone }: { token: string; onDone: () => 
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
-    document.title = "Nova senha · Obra Ágil";
+    document.title = "Nova senha · Obi Ágil";
   }, []);
 
   async function save() {

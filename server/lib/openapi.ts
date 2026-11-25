@@ -128,10 +128,10 @@ export function buildOpenApi(routes: AnyRoute[]) {
   return {
     openapi: "3.1.0",
     info: {
-      title: "Obra Ágil API",
+      title: "Obi Ágil API",
       version: "1.0.0",
       description:
-        "API do Obra Ágil, marketplace de aluguel de equipamentos de obra. Todas as rotas ficam em /api. " +
+        "API do Obi Ágil, marketplace de aluguel de equipamentos de obra. Todas as rotas ficam em /api. " +
         "A sessão é um cookie httpOnly (oa_session) criado no cadastro ou na entrada. Valores em reais (número com 2 casas). " +
         "Datas de calendário em YYYY-MM-DD e instantes em milissegundos desde 1970 (epoch).",
     },

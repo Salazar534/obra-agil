@@ -6,7 +6,8 @@ import { exec, many, one, tx } from "../db/pool.ts";
 import { badRequest, HttpError, notFound, unavailable } from "../lib/errors.ts";
 import { route } from "../lib/route.ts";
 import { safeEqual } from "../lib/security.ts";
-import { IdParams, PaymentMethod, serializePaymentMethod, type PaymentMethodRow, type UserRow } from "../models.ts";
+import { IdParams, PaymentMethod, serializePaymentMethod, type BusinessRow, type PaymentMethodRow, type UserRow } from "../models.ts";
+import { sellerAccessToken } from "../services/mercadopago-oauth.ts";
 import { applyPayment } from "../services/orders.ts";
 import { fakeGateway, gateway, GatewayError } from "../services/payments.ts";
 
@@ -165,11 +166,12 @@ export const paymentRoutes = [
     path: "/payments/installments",
     tag: "Payments",
     summary: "Opções de parcelamento",
-    description: "Parcelas de 1x a 12x para o valor e o cartão (pelos 6 a 8 primeiros dígitos), com juros quando houver.",
+    description: "Parcelas de crédito (1x a 12x) ou débito à vista, pelo BIN do cartão.",
     auth: "customer",
     query: z.object({
       amount: z.coerce.number().min(1).max(1_000_000).describe("Valor total em reais."),
       bin: z.string().regex(/^\d{6,8}$/, "Use os primeiros dígitos do cartão.").describe("6 a 8 primeiros dígitos do cartão."),
+      type: z.enum(["credit", "debit"]).optional().describe("credit (padrão) ou debit."),
     }),
     responses: {
       200: {
@@ -197,7 +199,7 @@ export const paymentRoutes = [
     handler: async ({ query }) => {
       requireGateway();
       try {
-        return await gateway.installments(query.amount, query.bin);
+        return await gateway.installments(query.amount, query.bin, query.type === "debit" ? "debit_card" : "credit_card");
       } catch (error) {
         if (error instanceof GatewayError) {
           console.error("[payments] installments failed", error.status, JSON.stringify(error.body));
@@ -231,7 +233,9 @@ export const paymentRoutes = [
       ]);
       if (type === "payment" && /^\d+$/.test(dataId) && gateway.enabled) {
         try {
-          await applyPayment(await gateway.getPayment(dataId));
+          const business = await one<BusinessRow>("select b.* from orders o join businesses b on b.id = o.business_id where o.mp_payment_id = $1", [dataId]);
+          const sellerToken = business && config.paymentsDriver !== "fake" ? await sellerAccessToken(business) : null;
+          await applyPayment(await gateway.getPayment(dataId, sellerToken));
         } catch (error) {
           console.error("[payments] webhook processing failed", dataId, error instanceof GatewayError ? error.body : error);
         }

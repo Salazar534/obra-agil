@@ -8,9 +8,10 @@ import { authLimiter, mailLimiter, smsLimiter } from "../lib/limits.ts";
 import { route } from "../lib/route.ts";
 import { decoyHash, hashPassword, newToken, sha256, verifyPassword } from "../lib/security.ts";
 import { endOtherSessions, endSession, readSession, startSession } from "../lib/session.ts";
-import { coverFor } from "../lib/text.ts";
+import { coverForCategory } from "../lib/text.ts";
 import { AddressInput, Business, Category, Email, loadBusinessOf, loadMe, Me, Password, Phone, Role } from "../models.ts";
 import { mailMode, resetPasswordEmail, sendMail } from "../services/mail.ts";
+import { verifyIdentity } from "../services/identity.ts";
 import { checkCode, sendCode } from "../services/sms.ts";
 
 export const Session = z.object({ user: Me, business: Business.nullable() }).meta({ id: "Session", description: "Conta logada e, para empresas, a loja." });
@@ -19,8 +20,24 @@ const Profile = z.object({
   role: Role,
   name: z.string().trim().min(3, "Digite seu nome completo.").max(80),
   address: AddressInput.describe("Endereço da obra (cliente) ou da loja (empresa)."),
+  document: z
+    .string()
+    .trim()
+    .transform((value) => value.replace(/\D/g, ""))
+    .default("")
+    .describe("CPF ou CNPJ de quem cria a conta."),
   business: z
-    .object({ name: z.string().trim().min(3, "Digite o nome da locadora.").max(80), category: Category })
+    .object({
+      name: z.string().trim().min(3, "Digite o nome da loja.").max(80),
+      category: Category,
+      offers: z.enum(["rental", "service", "both"]).default("rental"),
+      personType: z.enum(["pf", "pj"]).default("pf"),
+      document: z
+        .string()
+        .trim()
+        .transform((value) => value.replace(/\D/g, ""))
+        .default(""),
+    })
     .optional()
     .describe("Obrigatório quando role = business."),
 });
@@ -40,11 +57,23 @@ function uniqueViolation(error: unknown) {
 }
 
 async function createAccount(input: NewAccount) {
+  const identity = await verifyIdentity({
+    offers: input.business?.offers,
+    document: input.business?.document || input.document,
+  });
   try {
     return await tx(async (db) => {
       const user = await one<{ id: string }>(
-        "insert into users (role, name, email, phone, password_hash) values ($1, $2, $3, $4, $5) returning id",
-        [input.role, input.name, input.email ?? null, input.phone ?? null, input.passwordHash ?? null],
+        "insert into users (role, name, email, phone, password_hash, cpf, cnpj) values ($1, $2, $3, $4, $5, $6, $7) returning id",
+        [
+          input.role,
+          input.name,
+          input.email ?? null,
+          input.phone ?? null,
+          input.passwordHash ?? null,
+          identity?.kind === "cpf" ? identity.digits : null,
+          identity?.kind === "cnpj" ? identity.digits : null,
+        ],
         db,
       );
       const userId = user!.id;
@@ -57,10 +86,33 @@ async function createAccount(input: NewAccount) {
         );
         await exec("update users set active_address_id = $2 where id = $1", [userId, address!.id], db);
       } else if (input.business) {
+        const category = await one("select id from catalog_categories where id = $1 and active", [input.business.category], db);
+        if (!category) throw badRequest("unknown_category", "Escolha uma categoria do catálogo.");
         await exec(
-          `insert into businesses (owner_id, name, tagline, category, cover_url, phone, address_label, address_detail, lat, lng)
-           values ($1, $2, 'Nova no Obra Ágil', $3, $4, $5, $6, $7, $8, $9)`,
-          [userId, input.business.name, input.business.category, coverFor[input.business.category], input.phone ?? "", label, detail, lat, lng],
+          `insert into businesses (owner_id, name, tagline, category, offers, person_type, document, legal_name, cover_url, phone, address_label, address_detail, lat, lng)
+           values ($1, $2, 'Nova na Obi Ágil', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          [
+            userId,
+            input.business.name,
+            input.business.category,
+            input.business.offers,
+            identity?.kind === "cnpj" ? "pj" : "pf",
+            identity?.digits ?? null,
+            identity?.legalName ?? null,
+            coverForCategory(input.business.category),
+            input.phone ?? "",
+            label,
+            detail,
+            lat,
+            lng,
+          ],
+          db,
+        );
+        await exec(
+          `insert into business_categories (business_id, category_id)
+           select id, $2 from businesses where owner_id = $1
+           on conflict do nothing`,
+          [userId, input.business.category],
           db,
         );
       }

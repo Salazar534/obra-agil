@@ -3,7 +3,10 @@ import { conflict, forbidden } from "../lib/errors.ts";
 import type { Role } from "../lib/session.ts";
 import type { OrderOut } from "../models.ts";
 import { publishOrder } from "./events.ts";
+import { sellerAccessToken } from "./mercadopago-oauth.ts";
 import { brandName, gateway, GatewayError, type GatewayPayment } from "./payments.ts";
+import { config } from "../config.ts";
+import type { BusinessRow } from "../models.ts";
 
 type Status = OrderOut["status"];
 
@@ -24,9 +27,25 @@ const allowed: Record<Role, Partial<Record<Status, Status[]>>> = {
   },
 };
 
+async function tokenForOrder(orderId: string) {
+  if (config.paymentsDriver === "fake") return null;
+  const business = await one<BusinessRow>("select b.* from orders o join businesses b on b.id = o.business_id where o.id = $1", [orderId]);
+  return business ? sellerAccessToken(business) : null;
+}
+
+async function tokenForPayment(paymentId: string) {
+  if (config.paymentsDriver === "fake") return null;
+  const business = await one<BusinessRow>("select b.* from orders o join businesses b on b.id = o.business_id where o.mp_payment_id = $1", [paymentId]);
+  return business ? sellerAccessToken(business) : null;
+}
+
 export function paymentLabel(payment: GatewayPayment, fallbackMethodId: string | null) {
-  if (payment.paymentMethodId === "pix") return "Pix";
-  const brand = brandName(payment.paymentMethodId ?? fallbackMethodId);
+  const id = payment.paymentMethodId ?? fallbackMethodId;
+  if (id === "pix") return "Pix";
+  if (id === "bolbradesco") return "Boleto";
+  if (id === "pec") return "Lotérica";
+  if (id === "account_money") return "Saldo Mercado Pago";
+  const brand = brandName(id);
   const last = payment.card?.lastFour ? ` •••• ${payment.card.lastFour}` : "";
   return `${brand}${last}${payment.installments > 1 ? ` · ${payment.installments}x` : ""}`;
 }
@@ -80,7 +99,7 @@ export async function changeStatus(orderId: string, to: Status, actor: { id: str
     return order;
   });
   if (to === "cancelled" && before.status === "awaiting_payment" && before.mp_payment_id) {
-    await gateway.cancelPayment(before.mp_payment_id).catch((error) => console.error("[payments] cancel failed", orderId, error));
+    await gateway.cancelPayment(before.mp_payment_id, await tokenForOrder(orderId)).catch((error) => console.error("[payments] cancel failed", orderId, error));
   }
   await sendRefund(orderId);
   await publishOrder(orderId);
@@ -101,7 +120,7 @@ export async function sendRefund(orderId: string) {
   }
   const refunded = claim.refunded_cents + claim.due;
   try {
-    await gateway.refund(claim.mp_payment_id, refunded >= claim.total_cents && claim.refunded_cents === 0 ? null : claim.due / 100);
+    await gateway.refund(claim.mp_payment_id, refunded >= claim.total_cents && claim.refunded_cents === 0 ? null : claim.due / 100, await tokenForOrder(orderId));
     await exec(
       "update orders set refunded_cents = $2, payment_status = $3, updated_at = now() where id = $1",
       [orderId, refunded, refunded >= claim.total_cents ? "refunded" : "partially_refunded"],
@@ -126,9 +145,10 @@ export async function applyPayment(payment: GatewayPayment) {
     if (order.status === "awaiting_payment") {
       if (payment.status === "approved") {
         await exec(
-          `update orders set payment_status = 'approved', payment_detail = $2, mp_payment_id = $3, payment_label = $4, updated_at = now()
+          `update orders set payment_status = 'approved', payment_detail = $2, mp_payment_id = $3, payment_label = $4,
+                  money_release_at = coalesce($5, money_release_at), updated_at = now()
             where id = $1`,
-          [orderId, payment.statusDetail, payment.id, paymentLabel(payment, null)],
+          [orderId, payment.statusDetail, payment.id, paymentLabel(payment, null), payment.releaseAt],
           db,
         );
         await recordStatus(db, orderId, "pending", null);
@@ -159,7 +179,7 @@ export async function applyPayment(payment: GatewayPayment) {
 export async function refreshPayment(orderId: string) {
   const order = await one<{ mp_payment_id: string | null; status: Status }>("select mp_payment_id, status from orders where id = $1", [orderId]);
   if (!order?.mp_payment_id || order.status !== "awaiting_payment") return;
-  await applyPayment(await gateway.getPayment(order.mp_payment_id));
+  await applyPayment(await gateway.getPayment(order.mp_payment_id, await tokenForOrder(orderId)));
 }
 
 /** Background upkeep: pending Pix, expired Pix, half-created orders and refunds that failed. */
@@ -174,7 +194,7 @@ export async function sweep() {
     try {
       if (!order.mp_payment_id) {
         if (Date.now() - order.created_at.getTime() < 2 * 60_000) continue;
-        const found = await gateway.findByReference(order.id);
+        const found = await gateway.findByReference(order.id, await tokenForOrder(order.id));
         if (found) {
           await exec("update orders set mp_payment_id = $2 where id = $1 and mp_payment_id is null", [order.id, found.id]);
           await applyPayment(found);
@@ -183,7 +203,7 @@ export async function sweep() {
         }
         continue;
       }
-      const payment = await gateway.getPayment(order.mp_payment_id);
+      const payment = await gateway.getPayment(order.mp_payment_id, await tokenForOrder(order.id));
       const changed = await applyPayment(payment);
       if (!changed && payment.status === "pending" && order.pix_expires_at && order.pix_expires_at.getTime() < Date.now() - 60_000) {
         await expire(order.id, order.mp_payment_id);
@@ -197,7 +217,7 @@ export async function sweep() {
 }
 
 async function expire(orderId: string, paymentId: string | null) {
-  if (paymentId) await gateway.cancelPayment(paymentId).catch(() => {});
+  if (paymentId) await gateway.cancelPayment(paymentId, await tokenForPayment(paymentId)).catch(() => {});
   const changed = await tx(async (db) => {
     const order = await one<{ status: Status }>("select status from orders where id = $1 for update", [orderId], db);
     if (order?.status !== "awaiting_payment") return false;

@@ -2,6 +2,10 @@ export const CATEGORIES = ["concreto", "andaimes", "ferramentas", "energia", "co
 export type Category = (typeof CATEGORIES)[number];
 
 /** Default store cover per category; files live in the web app's public/img. */
+export function coverForCategory(id: string) {
+  return coverFor[id as Category] ?? "/img/biz/loja.webp";
+}
+
 export const coverFor: Record<Category, string> = {
   concreto: "/img/biz/obra.webp",
   andaimes: "/img/biz/andaimes.webp",

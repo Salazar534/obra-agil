@@ -26,10 +26,10 @@ export function Welcome({ onSignUp, onSignIn }: { onSignUp: () => void; onSignIn
       </div>
       <div className="px-6">
         <h1 className="anim-rise type-large" style={{ animationDelay: "160ms" }}>
-          Obra Ágil
+          Obi Ágil
         </h1>
         <p className="anim-rise mt-2 type-body text-muted-foreground" style={{ animationDelay: "240ms" }}>
-          Alugue equipamentos perto da obra ou anuncie o estoque da sua locadora.
+          Alugue o que precisar, ofereça um serviço ou anuncie o que você tem.
         </p>
       </div>
       <div className="anim-rise mt-auto flex flex-col gap-2.5 px-5 pt-6" style={{ animationDelay: "320ms", paddingBottom: "calc(var(--safe-bottom) + 14px)" }}>

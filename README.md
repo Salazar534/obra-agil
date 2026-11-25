@@ -1,9 +1,10 @@
-# Obra Ágil
+# Obi Ágil
 
 Marketplace de aluguel de equipamentos de obra. Quem aluga informa o endereço da obra, encontra locadoras por perto e paga com Pix ou cartão em até 12x. As locadoras cadastram o estoque, recebem os pedidos e conversam com o cliente pelo app.
 
-- **App web** (React, Vite, Tailwind) com visual de app iOS, que pode ser instalado na tela de início do celular.
-- **API** (Express, PostgreSQL, Zod), documentada em [`docs/API.md`](docs/API.md) e no Swagger em `/api/docs`.
+- **Site** em [obiagil.com.br](https://obiagil.com.br), para quem ainda não entrou.
+- **App** em [app.obiagil.com.br](https://app.obiagil.com.br) (React, Vite, Tailwind), com visual de app iOS, que pode ser instalado na tela de início do celular.
+- **API** em [api.obiagil.com.br](https://api.obiagil.com.br) (Express, PostgreSQL, Zod). A página pede a sessão do app. A referência fica em [`docs/API.md`](docs/API.md).
 - **App Expo Go** em `mobile/`, que abre o app web em tela cheia e usa o GPS, a vibração e o compartilhar do celular.
 
 ## Requisitos
@@ -21,7 +22,7 @@ npm run dev
 O primeiro `npm run dev` cria o `.env` com uma senha nova para o banco, inicia o PostgreSQL do projeto, aplica as migrações e sobe:
 
 - o app em http://localhost:5173
-- a API em http://localhost:3001/api, com o Swagger em http://localhost:3001/api/docs
+- a API em http://localhost:3001/api. A página em http://localhost:3001 pede a sessão.
 
 Não há contas de exemplo: crie uma conta de cliente e outra de locadora pelo próprio app.
 
@@ -60,10 +61,10 @@ Tudo funciona em desenvolvimento sem credenciais, menos os pagamentos. Veja [`.e
 
 ## Produção
 
-1. No `.env`: `NODE_ENV=production`, `DATABASE_URL`, `APP_URL` e `PUBLIC_URL` (HTTPS), além das credenciais da tabela acima. Atrás de um proxy reverso, ajuste `TRUST_PROXY`.
-2. `npm run build`
-3. `npm start`: escuta em `0.0.0.0:PORT`, entrega a API em `/api`, as fotos em `/uploads` e o app no resto.
-4. No painel do Mercado Pago, cadastre o webhook `PUBLIC_URL/api/webhooks/mercadopago` com o evento Pagamentos.
+1. No `.env` da API: `NODE_ENV=production`, `DATABASE_URL`, `APP_URL=https://app.obiagil.com.br`, `PUBLIC_URL=https://api.obiagil.com.br` e `COOKIE_DOMAIN=.obiagil.com.br`. Atrás do proxy, `TRUST_PROXY=1`.
+2. No Railway, o serviço `web` entrega o site em `obiagil.com.br` (e `www` redireciona para lá). O serviço `app` entrega o produto em `app.obiagil.com.br` e encaminha `/api` para a API. O serviço `api` escuta em `api.obiagil.com.br`. O Postgres é o banco.
+3. `npm run build` e `npm start` continuam servindo API e app juntos numa máquina só.
+4. No painel do Mercado Pago, o webhook é `PUBLIC_URL/api/webhooks/mercadopago`, com o evento Pagamentos. O retorno do OAuth continua na URL já cadastrada.
 
 As fotos enviadas ficam em `server/storage/uploads`; faça backup delas junto com o banco.
 

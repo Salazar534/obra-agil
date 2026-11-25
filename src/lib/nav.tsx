@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
+import { DesktopNav } from "../ui/DesktopNav.tsx";
 import { TabBar, type TabDef } from "../ui/TabBar.tsx";
+import { useDesktop } from "./desktop.ts";
 import { postNative } from "./native.ts";
 
 export type Route = { key: number; name: string; params: Record<string, string> };
@@ -19,8 +21,12 @@ type PageState = { active: boolean; depth: number; tabBar: boolean };
 const NavContext = createContext<NavApi | null>(null);
 const PageContext = createContext<PageState>({ active: true, depth: 0, tabBar: false });
 
+export function useOptionalNav() {
+  return useContext(NavContext);
+}
+
 export function useNav() {
-  const api = useContext(NavContext);
+  const api = useOptionalNav();
   if (!api) throw new Error("useNav precisa estar dentro de <Shell>");
   return api;
 }
@@ -63,10 +69,12 @@ export function Shell({
   tabs,
   render,
   hideTabBar,
+  layout = "market",
 }: {
   tabs: TabDef[];
   render: (route: Route) => ReactNode;
   hideTabBar?: (route: Route) => boolean;
+  layout?: "market" | "saas";
 }) {
   const [state, setState] = useState<ShellState>(() => ({
     tab: tabs[0].id,
@@ -120,30 +128,36 @@ export function Shell({
     return () => window.removeEventListener("obra:navback", onBack);
   }, [api, state, tabs]);
 
+  const desktop = useDesktop();
   const activeStack = state.stacks[state.tab];
   const top = activeStack[activeStack.length - 1];
-  const showTabBar = !hideTabBar?.(top);
+  const showTabBar = !desktop && !hideTabBar?.(top);
 
   return (
     <NavContext.Provider value={api}>
-      {tabs.map((t) =>
-        state.stacks[t.id].map((route, index, stack) => {
-          const active = t.id === state.tab && index === stack.length - 1;
-          return (
-            <PageContext.Provider key={route.key} value={{ active, depth: index, tabBar: !hideTabBar?.(route) }}>
-              <div
-                className="absolute inset-0"
-                style={{ visibility: active ? "visible" : "hidden" }}
-                inert={!active}
-                aria-hidden={active ? undefined : true}
-              >
-                {render(route)}
-              </div>
-            </PageContext.Provider>
-          );
-        }),
-      )}
-      {showTabBar ? <TabBar tabs={tabs} active={state.tab} onChange={(id) => api.switchTab(id)} /> : null}
+      <div className={`absolute inset-0 flex ${layout === "saas" ? "lg:bg-[#e6e8ee]" : "lg:bg-card"}`}>
+        {desktop ? <DesktopNav layout={layout} tabs={tabs} tab={state.tab} route={top} /> : null}
+        <div className={`stage min-w-0 flex-1 ${layout === "saas" ? "stage-saas" : ""}`}>
+          {tabs.map((t) =>
+            state.stacks[t.id].map((route, index, stack) => {
+              const active = t.id === state.tab && index === stack.length - 1;
+              return (
+                <PageContext.Provider key={route.key} value={{ active, depth: index, tabBar: !desktop && !hideTabBar?.(route) }}>
+                  <div
+                    className="absolute inset-0"
+                    style={{ visibility: active ? "visible" : "hidden" }}
+                    inert={!active}
+                    aria-hidden={active ? undefined : true}
+                  >
+                    {render(route)}
+                  </div>
+                </PageContext.Provider>
+              );
+            }),
+          )}
+          {showTabBar ? <TabBar tabs={tabs} active={state.tab} onChange={(id) => api.switchTab(id)} /> : null}
+        </div>
+      </div>
     </NavContext.Provider>
   );
 }

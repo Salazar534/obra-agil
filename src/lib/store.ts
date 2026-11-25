@@ -15,6 +15,7 @@ import type {
   OrderStatus,
   PaymentMethod,
   PublicConfig,
+  StoreBalance,
   Review,
   Role,
   Session,
@@ -412,7 +413,7 @@ export type SignUpProfile = {
   role: Role;
   name: string;
   address: Address;
-  business?: { name: string; category: CategoryId };
+  business?: { name: string; category: CategoryId; offers?: "rental" | "service" | "both"; personType?: "pf" | "pj"; document?: string };
 };
 
 export type CardPayment = {
@@ -430,11 +431,15 @@ export type PlaceOrderInput = {
   days: number;
   mode: Order["mode"];
   address?: Address;
-  payment: CardPayment | { method: "pix" };
+  payment: CardPayment | { method: "pix" | "boleto" | "pec" | "account_money" };
   payer?: { email?: string; cpf?: string };
 };
 
-export type ItemInput = Pick<Item, "name" | "category" | "price" | "deposit" | "description" | "specs" | "image" | "quantity" | "available">;
+export type ItemInput = Pick<Item, "name" | "category" | "price" | "deposit" | "description" | "specs" | "image" | "quantity" | "available"> & {
+  kind?: Item["kind"];
+  priceUnit?: Item["priceUnit"];
+  templateId?: string | null;
+};
 
 /* ---------- Actions ---------- */
 
@@ -598,15 +603,44 @@ export const actions = {
     set({ nearby: { key: nearbyKey(origin), businesses: data.businesses.map((b) => b.id), items: data.items.map((i) => i.id) } });
   },
 
-  async search(origin: LatLng, params: { q?: string; category?: CategoryId; sort: "near" | "price" | "rating" }, signal?: AbortSignal) {
+  async search(origin: LatLng, params: { q?: string; category?: CategoryId; kind?: "product" | "service"; sort: "near" | "price" | "rating" }, signal?: AbortSignal) {
     const query = new URLSearchParams({ lat: String(origin.lat), lng: String(origin.lng), sort: params.sort });
     if (params.q?.trim()) query.set("q", params.q.trim());
     if (params.category) query.set("category", params.category);
+    if (params.kind) query.set("kind", params.kind);
     const data = await api.get<{ results: { item: Item; business: Business }[] }>(`/search?${query}`);
     if (signal?.aborted) return [];
     mergeBusinesses(data.results.map((r) => r.business));
     mergeItems(data.results.map((r) => r.item));
     return data.results.map((r) => ({ ...r, km: distanceKm(origin, r.business.address) }));
+  },
+
+  async requestService(itemId: string, note: string) {
+    return api.post<{ id: string; status: string }>(`/items/${itemId}/requests`, { note });
+  },
+
+  serviceRequests(as: "customer" | "business") {
+    return api.get<{ requests: { id: string; item: string; note: string; status: string; quote: number | null; customer?: string; business?: string; at: number }[] }>(
+      as === "business" ? "/my/service-requests" : "/service-requests",
+    );
+  },
+
+  updateServiceRequest(id: string, body: { status: "quoted" | "cancelled" | "done"; quote?: number }) {
+    return api.patch(`/my/service-requests/${id}`, body);
+  },
+
+  acceptServiceRequest(id: string) {
+    return api.post(`/service-requests/${id}/accept`, {});
+  },
+
+  async catalog(params: { q?: string; kind?: "product" | "service" }) {
+    const query = new URLSearchParams();
+    if (params.q?.trim()) query.set("q", params.q.trim());
+    if (params.kind) query.set("kind", params.kind);
+    query.set("limit", "20");
+    return api.get<{ templates: { id: string; name: string; description: string; image: string | null; categoryId: string; category: string; kind: "product" | "service" }[] }>(
+      `/catalog/templates?${query}`,
+    );
   },
 
   async loadBusiness(id: string) {
@@ -666,10 +700,19 @@ export const actions = {
     }
   },
 
-  async updateBusiness(patch: Partial<Omit<Business, "id" | "ownerId" | "rating" | "reviewCount" | "createdAt" | "distanceKm">>) {
+  async updateBusiness(patch: Partial<Omit<Business, "id" | "ownerId" | "rating" | "reviewCount" | "createdAt" | "distanceKm" | "mercadoPagoConnected">>) {
     const business = await api.patch<Business>("/my/business", patch);
     set((s) => ({ business, businesses: { ...s.businesses, [business.id]: business } }));
     return business;
+  },
+
+  storeBalance() {
+    return api.get<StoreBalance>("/my/business/balance");
+  },
+
+  async connectMercadoPago() {
+    const { url } = await api.post<{ url: string }>("/my/business/mercadopago", {});
+    window.location.assign(url);
   },
 
   async loadOrders() {
@@ -747,7 +790,7 @@ export const actions = {
     set({ payments: await api.patch<PaymentMethod[]>(`/payment-methods/${id}`, { isDefault: true }) });
   },
 
-  installments(amount: number, bin: string) {
-    return api.get<Installments>(`/payments/installments?amount=${amount.toFixed(2)}&bin=${bin}`);
+  installments(amount: number, bin: string, type: "credit" | "debit" = "credit") {
+    return api.get<Installments>(`/payments/installments?amount=${amount.toFixed(2)}&bin=${bin}&type=${type}`);
   },
 };

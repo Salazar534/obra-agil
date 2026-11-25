@@ -100,6 +100,7 @@ export const exploreRoutes = [
     query: Point.extend({
       q: z.string().trim().max(60).optional().describe("Texto livre, como betoneira ou andaime."),
       category: Category.optional(),
+      kind: z.enum(["product", "service"]).optional(),
       sort: z.enum(["near", "price", "rating"]).default("near"),
     }),
     responses: {
@@ -124,9 +125,10 @@ export const exploreRoutes = [
             and ($4::text is null or i.category = $4)
             and ($5::text is null or i.search like '%' || $5 || '%'
                  or translate(lower(near.name), 'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc') like '%' || $5 || '%')
+            and ($6::text is null or i.kind = $6)
           order by i.available desc, ${order}
           limit 100`,
-        [query.lat, query.lng, query.radiusKm, query.category ?? null, term],
+        [query.lat, query.lng, query.radiusKm, query.category ?? null, term, query.kind ?? null],
       );
       const ids = [...new Set(rows.map((row) => row.b_id))];
       const businesses = ids.length

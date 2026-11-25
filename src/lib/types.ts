@@ -34,7 +34,10 @@ export type Business = {
   name: string;
   tagline: string;
   about: string;
-  category: CategoryId;
+  category: string;
+  offers: "rental" | "service" | "both";
+  personType: "pf" | "pj";
+  document: string | null;
   cover: string;
   logo: string | null;
   phone: string;
@@ -45,6 +48,7 @@ export type Business = {
   radiusKm: number;
   rating: number;
   reviewCount: number;
+  mercadoPagoConnected: boolean;
   createdAt: number;
   distanceKm?: number;
 };
@@ -53,7 +57,9 @@ export type Item = {
   id: string;
   businessId: string;
   name: string;
-  category: CategoryId;
+  category: string;
+  kind: "product" | "service";
+  priceUnit: "hour" | "day" | "fixed" | "quote";
   price: number;
   deposit: number;
   description: string;
@@ -70,13 +76,14 @@ export type OrderStatus = "awaiting_payment" | "pending" | "accepted" | "on_the_
 export type PaymentStatus = "pending" | "approved" | "rejected" | "cancelled" | "refunded" | "partially_refunded";
 
 export type OrderPayment = {
-  method: "card" | "pix";
+  method: "card" | "pix" | "boleto" | "pec" | "account_money";
   label: string;
   installments: number;
   status: PaymentStatus;
   detail: string | null;
   refunded: number;
   pix: { qrCode: string; qrCodeBase64: string; ticketUrl: string | null; expiresAt: number } | null;
+  ticket: { barcode: string | null; url: string | null; expiresAt: number | null } | null;
 };
 
 export type Order = {
@@ -143,11 +150,33 @@ export type Installments = {
   options: InstallmentOption[];
 };
 
+export type StoreMovement = {
+  id: string;
+  code: string;
+  item: string;
+  at: number;
+  amount: number;
+  bucket: "waiting" | "receiving" | "available" | "refunded";
+};
+
+export type StoreBalance = {
+  waiting: number;
+  receiving: number;
+  available: number;
+  serviceFee: number;
+  refunded: number;
+  depositHeld: number;
+  connected: boolean;
+  withdrawUrl: string;
+  movements: StoreMovement[];
+};
+
 export type PublicConfig = {
   payments: { enabled: boolean; provider: "mercadopago"; publicKey: string | null; maxInstallments: number };
   sms: { enabled: boolean; mode: "twilio" | "console" | "disabled" };
   email: { enabled: boolean; mode: "smtp" | "console" | "disabled" };
   serviceFeeRate: number;
+  apiPage: string | null;
 };
 
 export type Session = { user: Account; business: Business | null };

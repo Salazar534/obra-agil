@@ -115,8 +115,8 @@ export function Dashboard() {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <Stat icon={TrendingUp} tone="green" label="Receita no mês" value={brlShort(Math.round(revenue))} />
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat icon={TrendingUp} tone="green" label="Receita no mês" value={brlShort(Math.round(revenue))} onClick={() => nav.push("finance")} />
         <Stat icon={Inbox} tone="orange" label="Pedidos ativos" value={String(active.length + pending.length)} onClick={() => nav.switchTab("requests")} />
         <Stat icon={Boxes} tone="blue" label="Itens disponíveis" value={`${items.filter((i) => i.available).length}/${items.length}`} onClick={() => nav.switchTab("inventory")} />
         <Stat
@@ -128,7 +128,8 @@ export function Dashboard() {
         />
       </div>
 
-      <section className="anim-rise mt-4 rounded-[24px] bg-card p-4" style={{ animationDelay: "120ms" }}>
+      <div className="lg:mt-4 lg:grid lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] lg:items-start lg:gap-4">
+      <section className="anim-rise mt-4 rounded-[24px] bg-card p-4 lg:mt-0" style={{ animationDelay: "120ms" }}>
         <div className="flex items-baseline justify-between">
           <h2 className="type-headline">Últimos 7 dias</h2>
           <span className="type-subhead text-muted-foreground tabular-nums">{brl(weekTotal)}</span>
@@ -153,6 +154,7 @@ export function Dashboard() {
         </div>
       </section>
 
+      <div>
       <SectionHeader title="Novos pedidos" action={pending.length ? { label: "Ver todos", onClick: () => nav.switchTab("requests") } : undefined} />
       {pending.length ? (
         <div className="flex flex-col gap-3">
@@ -198,6 +200,8 @@ export function Dashboard() {
           <p className="type-subhead text-muted-foreground">Nenhum pedido novo. Itens com foto boa alugam mais rápido.</p>
         </div>
       )}
+      </div>
+      </div>
 
       <ActionSheet
         open={declining !== null}

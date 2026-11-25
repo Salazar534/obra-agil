@@ -163,6 +163,79 @@ function PixPanel({ order }: { order: Order }) {
   );
 }
 
+function TicketPanel({ order }: { order: Order }) {
+  const ticket = order.payment.ticket!;
+  const [now, setNow] = useState(() => Date.now());
+  const [checking, setChecking] = useState(false);
+  const boleto = order.payment.method === "boleto";
+  const loterica = order.payment.method === "pec";
+
+  useEffect(() => {
+    const poll = window.setInterval(() => void actions.refreshPayment(order.id).catch(() => {}), 15_000);
+    const tick = ticket.expiresAt ? window.setInterval(() => setNow(Date.now()), 60_000) : 0;
+    return () => {
+      window.clearInterval(poll);
+      if (tick) window.clearInterval(tick);
+    };
+  }, [order.id, ticket.expiresAt]);
+
+  const left = ticket.expiresAt ? Math.max(0, ticket.expiresAt - now) : null;
+  const title = boleto ? `Pague ${brl(order.total)} no boleto` : loterica ? `Pague ${brl(order.total)} na lotérica` : `Confirme ${brl(order.total)} no Mercado Pago`;
+  const hint = boleto
+    ? "Pague pelo app do banco ou numa lotérica. A compensação pode levar até 2 dias úteis."
+    : loterica
+      ? "Leve o código a uma casa lotérica e pague em dinheiro."
+      : "Abra o Mercado Pago e autorize o pagamento com o saldo da conta.";
+
+  return (
+    <section className="anim-rise mt-4 rounded-[28px] bg-card p-4 text-center" aria-label={title}>
+      <p className="type-headline">{title}</p>
+      <p className="mt-0.5 type-footnote text-muted-foreground">
+        {left === null ? "Aguardando a confirmação do Mercado Pago." : left > 0 ? `Vence em ${Math.ceil(left / 86_400_000)} dia(s)` : "O prazo acabou. O pedido será cancelado."}
+      </p>
+      <p className="mx-auto mt-3 max-w-[320px] type-footnote text-muted-foreground">{hint}</p>
+      <div className="mt-4 flex flex-col gap-2">
+        {ticket.barcode ? (
+          <Button
+            variant="tinted"
+            onClick={() =>
+              void copyText(ticket.barcode!)
+                .then(() => toast(boleto ? "Linha digitável copiada" : "Código copiado"))
+                .catch(() => toast("Não deu para copiar. Toque e segure o código.", "error"))
+            }
+          >
+            <Copy className="size-[18px]" aria-hidden="true" />
+            {boleto ? "Copiar linha digitável" : "Copiar código"}
+          </Button>
+        ) : null}
+        {ticket.url ? (
+          <a href={ticket.url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-1.5 rounded-full bg-primary px-4 py-3 type-headline text-primary-foreground">
+            {boleto ? "Abrir boleto" : "Abrir no Mercado Pago"} <ExternalLink className="size-4" aria-hidden="true" />
+          </a>
+        ) : null}
+        <Button
+          variant="gray"
+          loading={checking}
+          onClick={async () => {
+            setChecking(true);
+            try {
+              const changed = await actions.refreshPayment(order.id);
+              if (!changed) toast("Ainda não recebemos o pagamento.", "info");
+            } catch (error) {
+              toast(errorMessage(error), "error");
+            } finally {
+              setChecking(false);
+            }
+          }}
+        >
+          Já paguei
+        </Button>
+      </div>
+      {ticket.barcode ? <p className="mt-3 break-all rounded-[14px] bg-muted px-3 py-2 text-left font-mono text-[11px] leading-4 text-muted-foreground select-all">{ticket.barcode}</p> : null}
+    </section>
+  );
+}
+
 function ReviewSheet({ open, onClose, store, onSend }: { open: boolean; onClose: () => void; store: string; onSend: (stars: number, text: string) => Promise<void> }) {
   const [stars, setStars] = useState(0);
   const [text, setText] = useState("");
@@ -224,7 +297,18 @@ export function OrderScreen({ id }: { id: string }) {
   const customer = order.customer;
 
   const hero: Record<OrderStatus, { mood: MascotMood; title: string; text: string }> = {
-    awaiting_payment: { mood: "think", title: "Aguardando pagamento", text: "Assim que o Pix cair, o pedido vai para a loja." },
+    awaiting_payment: {
+      mood: "think",
+      title: "Aguardando pagamento",
+      text:
+        order.payment.method === "boleto"
+          ? "Pague o boleto. O pedido vai para a loja quando o banco compensar."
+          : order.payment.method === "pec"
+            ? "Pague na lotérica. O pedido vai para a loja quando o pagamento cair."
+            : order.payment.method === "account_money"
+              ? "Confirme o pagamento com o saldo do Mercado Pago."
+              : "Assim que o Pix cair, o pedido vai para a loja.",
+    },
     pending: {
       mood: "think",
       title: isBusiness ? "Novo pedido" : "Aguardando a loja",
@@ -281,6 +365,7 @@ export function OrderScreen({ id }: { id: string }) {
       </div>
 
       {order.status === "awaiting_payment" && payment.pix && !isBusiness ? <PixPanel order={order} /> : null}
+      {order.status === "awaiting_payment" && payment.ticket && !isBusiness ? <TicketPanel order={order} /> : null}
 
       <Group title="Andamento">
         <Timeline order={order} />
@@ -302,10 +387,14 @@ export function OrderScreen({ id }: { id: string }) {
       <Group title="Valores" footer={order.deposit ? `Caução de ${brl(order.deposit)} incluída no total e estornada quando a loja confirma a devolução.` : undefined}>
         <Row title={`Aluguel (${plural(order.days, "dia", "dias")})`} value={brl(order.rent)} />
         {order.deliveryFee ? <Row title="Entrega" value={brl(order.deliveryFee)} /> : null}
-        {isBusiness ? null : <Row title="Taxa de serviço" value={brl(order.serviceFee)} />}
+        <Row title={isBusiness ? "Taxa da Obi Ágil" : "Taxa de serviço"} value={brl(order.serviceFee)} />
         {order.deposit ? <Row title="Caução" value={brl(order.deposit)} /> : null}
+        {order.payment.refunded ? <Row title="Estornado" value={brl(order.payment.refunded)} /> : null}
         {isBusiness ? (
-          <Row title={<span className="font-semibold">Você recebe</span>} value={<span className="font-semibold text-foreground">{brl(order.rent + order.deliveryFee)}</span>} />
+          <Row
+            title={<span className="font-semibold">Você recebe</span>}
+            value={<span className="font-semibold text-foreground">{brl(Math.max(0, order.total - order.serviceFee - order.payment.refunded))}</span>}
+          />
         ) : (
           <Row title={<span className="font-semibold">Total</span>} value={<span className="font-semibold text-foreground">{brl(order.total)}</span>} />
         )}

@@ -7,6 +7,7 @@ import { OrderCard } from "../../ui/cards.tsx";
 import { EmptyState, Segmented, Spinner } from "../../ui/controls.tsx";
 import { Page } from "../../ui/Page.tsx";
 import { ProfileButton } from "../shared/Profile.tsx";
+import { ServiceQuotes } from "../shared/ServiceQuotes.tsx";
 import { earning } from "./Dashboard.tsx";
 
 type Segment = "new" | "active" | "done";
@@ -43,8 +44,9 @@ export function Requests() {
           { value: "done", label: "Concluídos" },
         ]}
       />
+      <ServiceQuotes role="business" />
       {list.length ? (
-        <div className="mt-4 flex flex-col gap-3">
+        <div className="mt-4 grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
           {list.map((order, index) => (
             <div key={order.id} className="anim-rise" style={{ animationDelay: `${index * 50}ms` }}>
               <OrderCard

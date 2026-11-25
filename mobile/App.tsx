@@ -148,7 +148,7 @@ function ObraAgil() {
       {failed ? (
         <View style={[styles.center, { paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
           <Image source={require("./assets/obi.png")} style={styles.mascot} />
-          <Text style={styles.title}>Não consegui abrir o Obra Ágil</Text>
+          <Text style={styles.title}>Não consegui abrir o Obi Ágil</Text>
           <Text style={styles.body}>
             Confira se o computador está rodando o app (npm run dev) e se o celular está no mesmo Wi‑Fi.
           </Text>
@@ -160,7 +160,7 @@ function ObraAgil() {
       ) : (
         <Animated.View pointerEvents={ready ? "none" : "auto"} style={[StyleSheet.absoluteFill, styles.center, { opacity: splash }]}>
           <Image source={require("./assets/obi.png")} style={styles.mascot} />
-          <Text style={styles.brand}>Obra Ágil</Text>
+          <Text style={styles.brand}>Obi Ágil</Text>
           <ActivityIndicator color={BLUE} style={{ marginTop: 18 }} />
         </Animated.View>
       )}

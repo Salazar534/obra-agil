@@ -248,7 +248,7 @@ mkdirSync(docsDir, { recursive: true });
 writeFileSync(join(docsDir, "openapi.json"), `${JSON.stringify(spec, null, 2)}\n`);
 
 const apiPath = join(docsDir, "API.md");
-const current = existsSync(apiPath) ? readFileSync(apiPath, "utf8") : `# Obra Ágil API\n\n${BEGIN}\n${END}\n`;
+const current = existsSync(apiPath) ? readFileSync(apiPath, "utf8") : `# Obi Ágil API\n\n${BEGIN}\n${END}\n`;
 const start = current.indexOf(BEGIN);
 const end = current.indexOf(END);
 if (start === -1 || end === -1) throw new Error(`docs/API.md precisa dos marcadores ${BEGIN} e ${END}.`);

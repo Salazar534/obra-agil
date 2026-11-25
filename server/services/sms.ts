@@ -5,11 +5,14 @@ import { safeEqual, sha256, sixDigitCode } from "../lib/security.ts";
 import { formatPhone } from "../lib/text.ts";
 
 /** twilio: real SMS via Twilio Verify. console: development only, the code is printed in the API terminal. */
-export const smsMode: "twilio" | "console" | "disabled" = config.twilio ? "twilio" : config.isProduction ? "disabled" : "console";
+export const smsMode: "twilio" | "console" | "disabled" =
+  config.env === "test" ? "console" : config.twilio ? "twilio" : config.isProduction ? "disabled" : "console";
 
 const RESEND_SECONDS = 30;
 const CODE_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
+/** Brazilian Portuguese for every Verify channel: SMS, voice call, RCS, and WhatsApp. */
+const VERIFY_LOCALE = "pt-BR";
 
 async function twilio(path: "Verifications" | "VerificationCheck", form: Record<string, string>) {
   const { accountSid, authToken, serviceSid } = config.twilio!;
@@ -44,7 +47,7 @@ export async function sendCode(phone: string, ip: string | null) {
   if ((recent?.phone_hour ?? 0) >= 5 || (recent?.ip_hour ?? 0) >= 20) throw tooMany("Muitos códigos pedidos. Tente de novo em uma hora.");
 
   if (smsMode === "twilio") {
-    const result = await twilio("Verifications", { To: `+55${phone}`, Channel: "sms", Locale: "pt-BR" });
+    const result = await twilio("Verifications", { To: `+55${phone}`, Channel: "sms", Locale: VERIFY_LOCALE });
     if (!result.ok) {
       console.error("[sms] Twilio error", result.httpStatus, result.data);
       if (result.httpStatus === 429 || result.data.code === 60203) throw tooMany("Muitos códigos para esse número. Tente mais tarde.");

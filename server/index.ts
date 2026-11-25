@@ -14,7 +14,7 @@ await migrate();
 
 const host = process.env.HOST ?? (config.isProduction ? "0.0.0.0" : "127.0.0.1");
 const server = createApp().listen(config.port, host, () => {
-  console.log(`[api] listening on http://${host}:${config.port}  (docs: /api/docs)`);
+  console.log(`[api] listening on http://${host}:${config.port}`);
   console.log(`[api] sms: ${smsMode} · email: ${mailMode} · payments: ${gateway.enabled ? config.paymentsDriver : "not configured (set MP_PUBLIC_KEY and MP_ACCESS_TOKEN)"}`);
 });
 
