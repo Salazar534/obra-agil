@@ -3,11 +3,12 @@ import { ChevronDown, MapPin, Search, X } from "lucide-react";
 import { errorMessage } from "../../lib/api.ts";
 import { categories } from "../../lib/catalog.ts";
 import { firstName, greeting } from "../../lib/format.ts";
+import { useDesktop } from "../../lib/desktop.ts";
 import { useNav } from "../../lib/nav.tsx";
 import { actions, originOf, useDB, useMe, useNearby } from "../../lib/store.ts";
 import { toast } from "../../lib/toast.ts";
 import { AddressSheet } from "../../ui/AddressPicker.tsx";
-import { BusinessCard, ItemCard } from "../../ui/cards.tsx";
+import { BusinessCard, ItemCard, ListingRow } from "../../ui/cards.tsx";
 import { Button, EmptyState, Img, SectionHeader } from "../../ui/controls.tsx";
 import { Mascot } from "../../ui/Mascot.tsx";
 import { Page } from "../../ui/Page.tsx";
@@ -56,6 +57,7 @@ function LoadingCards() {
 }
 
 export function Explore() {
+  const desktop = useDesktop();
   const db = useDB();
   const me = useMe();
   const nav = useNav();
@@ -78,7 +80,7 @@ export function Explore() {
   );
 
   return (
-    <Page title="Explorar" actions={<ProfileButton />}>
+    <Page title={desktop ? "Equipamentos para alugar" : "Explorar"} actions={<ProfileButton />}>
       <AddressPill label={origin.label} onClick={() => setAddressOpen(true)} />
       <button
         type="button"
@@ -104,7 +106,7 @@ export function Explore() {
         ))}
       </div>
 
-      {!me.tipDismissed ? (
+      {!desktop && !me.tipDismissed ? (
         <div className="anim-rise relative mt-6 flex items-center gap-2 overflow-hidden rounded-[26px] bg-card py-2 pr-11 pl-1">
           <Mascot mood="wave" size={70} className="shrink-0" />
           <div className="min-w-0">
@@ -160,7 +162,18 @@ export function Explore() {
           {popular.length ? (
             <>
               <SectionHeader title={popular.some((l) => l.item.rentals > 0) ? "Mais alugados" : "Para alugar agora"} />
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4 xl:grid-cols-4 2xl:grid-cols-5">
+              <div className="hidden overflow-hidden rounded-[22px] border border-border bg-card lg:block">
+                {popular.map((listing) => (
+                  <ListingRow
+                    key={listing.item.id}
+                    item={listing.item}
+                    business={listing.business}
+                    km={listing.km}
+                    onClick={() => nav.push("item", { id: listing.item.id })}
+                  />
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-3 lg:hidden">
                 {popular.map((listing) => (
                   <ItemCard key={listing.item.id} listing={listing} onClick={() => nav.push("item", { id: listing.item.id })} />
                 ))}

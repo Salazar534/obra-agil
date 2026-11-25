@@ -6,7 +6,6 @@ import { useNav, type Route } from "../lib/nav.tsx";
 import { originOf, useDB, useMe } from "../lib/store.ts";
 import type { TabDef } from "./TabBar.tsx";
 import { Avatar } from "./controls.tsx";
-import { Mascot } from "./Mascot.tsx";
 
 export function DesktopNav({
   layout,
@@ -37,13 +36,11 @@ export function DesktopNav({
         saas ? "w-[260px] bg-[#10131a] text-white" : "w-[300px] border-r border-border bg-card text-foreground"
       }`}
     >
-      <div className={`flex items-center gap-2.5 px-4 ${saas ? "pt-5 pb-2" : "pt-4 pb-3"}`}>
-        <Mascot mood={saas ? "idle" : "wave"} size={saas ? 48 : 46} />
+      <div className={`flex items-center gap-2.5 px-4 ${saas ? "pt-5 pb-4" : "pt-5 pb-4"}`}>
+        <img src="/img/logo-mark.png?v=10" alt="" className="size-9 shrink-0 rounded-[10px] object-cover" />
         <div className="min-w-0">
-          <p className={`truncate font-bold tracking-[-0.04em] ${saas ? "text-[13px] text-white/50" : "text-[20px]"}`}>Obi Ágil</p>
-          <p className={`truncate ${saas ? "text-[16px] font-semibold tracking-[-0.03em]" : "type-footnote text-muted-foreground"}`}>
-            {saas ? (db.business?.name ?? "Sua loja") : "Marketplace"}
-          </p>
+          <p className={`truncate text-[18px] font-semibold tracking-[-0.03em] ${saas ? "text-white" : ""}`}>Obi Ágil</p>
+          {saas ? <p className="truncate text-[13px] text-white/55">{db.business?.name ?? "Sua loja"}</p> : null}
         </div>
       </div>
 

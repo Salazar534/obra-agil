@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { BatteryFull, Signal, Wifi } from "lucide-react";
+import { useWideScreen } from "./lib/desktop.ts";
 import { clock } from "./lib/format.ts";
 import { actions, useDB } from "./lib/store.ts";
 import { toast } from "./lib/toast.ts";
 import { Onboarding } from "./screens/auth/Onboarding.tsx";
+import { isAuthEmbed } from "./screens/auth/embed.ts";
 import { ResetPassword } from "./screens/auth/ResetPassword.tsx";
 import { BusinessApp } from "./screens/business/BusinessApp.tsx";
 import { CustomerApp } from "./screens/customer/CustomerApp.tsx";
@@ -68,6 +70,8 @@ function Offline() {
 export default function App() {
   const db = useDB();
   const me = db.me;
+  const wide = useWideScreen();
+  const embed = isAuthEmbed();
   const [resetToken, setResetToken] = useState(() => new URLSearchParams(window.location.search).get("reset"));
 
   useEffect(() => {
@@ -112,7 +116,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-dvh items-center justify-center">
-      <div className="device">
+      <div className={`device ${embed || (wide && db.phase === "ready" && !me && !resetToken) ? "device-plain" : ""}`}>
         {screen}
         <div id="overlays" className="pointer-events-none absolute inset-0 z-[60] *:pointer-events-auto" />
         <Toaster />

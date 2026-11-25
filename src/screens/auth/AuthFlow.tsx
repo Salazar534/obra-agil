@@ -14,6 +14,7 @@ import { Button, Field, GlassButton, Segmented, ToneIcon } from "../../ui/contro
 import { MapView } from "../../ui/MapView.tsx";
 import { MascotSays, type MascotMood } from "../../ui/Mascot.tsx";
 import { CodeInput, DevHint, ForgotPasswordSheet, PasswordField, PhoneField, useCooldown } from "./AuthFields.tsx";
+import { isAuthEmbed, notifyAuthEmbed } from "./embed.ts";
 
 export type AuthMode = "signup" | "signin";
 export type Prefill = { via: "phone" | "email"; value: string; ticket?: string };
@@ -72,12 +73,16 @@ export function AuthFlow({
   prefill,
   onExit,
   onSwitch,
+  wide = false,
+  panel = false,
 }: {
   mode: AuthMode;
   initialRole?: Role;
   prefill?: Prefill;
   onExit: () => void;
   onSwitch: (mode: AuthMode, prefill?: Prefill) => void;
+  wide?: boolean;
+  panel?: boolean;
 }) {
   const config = useDB().config;
   const smsOn = config?.sms.enabled ?? false;
@@ -93,7 +98,8 @@ export function AuthFlow({
         : via === "phone"
           ? ["role", "details", "method", "code", "address"]
           : ["role", "details", "method", "address"];
-  const [step, setStep] = useState<Step>(steps[0]);
+  const [trail, setTrail] = useState<Step[]>([steps[0]]);
+  const step = trail[trail.length - 1] ?? steps[0];
   const [role, setRole] = useState<Role | null>(initialRole ?? null);
   const [name, setName] = useState("");
   const [businessName, setBusinessName] = useState("");
@@ -116,13 +122,13 @@ export function AuthFlow({
 
   function go(next: Step) {
     setProblem(null);
-    setStep(next);
+    setTrail((current) => [...current, next]);
   }
 
   function back() {
     setProblem(null);
-    if (index <= 0) onExit();
-    else setStep(steps[index - 1]);
+    if (trail.length <= 1) onExit();
+    else setTrail((current) => current.slice(0, -1));
   }
 
   const backRef = useRef<() => void>(() => {});
@@ -145,6 +151,11 @@ export function AuthFlow({
   }, [code, step, pending]);
 
   function enter(session: Session) {
+    if (isAuthEmbed() && window.parent !== window) {
+      notifyAuthEmbed("entered");
+      window.top?.location.assign(`${window.location.origin}/`);
+      return;
+    }
     runTransition("fade", () => actions.enter(session));
   }
 
@@ -265,8 +276,8 @@ export function AuthFlow({
   };
 
   return (
-    <main className="vt-page absolute inset-0 flex flex-col bg-background">
-      <div className="flex items-center gap-3 px-3" style={{ paddingTop: "calc(var(--safe-top) + 8px)" }}>
+    <main className={`vt-page flex flex-col bg-background ${panel ? "relative max-h-[min(760px,calc(100dvh-48px))]" : "absolute inset-0"}`}>
+      <div className={`flex items-center gap-3 ${wide ? "px-8 pt-8" : "px-3"} ${isAuthEmbed() ? "pr-14" : ""}`} style={wide ? undefined : { paddingTop: "calc(var(--safe-top) + 8px)" }}>
         <GlassButton label="Voltar" onClick={back}>
           <ChevronLeft strokeWidth={2.4} aria-hidden="true" />
         </GlassButton>
@@ -276,14 +287,14 @@ export function AuthFlow({
 
       <form
         key={step}
-        className="anim-step min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-6"
+        className={`anim-step overflow-y-auto pb-2 ${panel ? "" : "min-h-0 flex-1"} ${wide ? "mx-auto w-full max-w-[420px] px-8 pt-8" : "px-5 pt-5"}`}
         onSubmit={(event) => {
           event.preventDefault();
           if (!cta[step].disabled && !pending) cta[step].run();
         }}
       >
-        <MascotSays mood={prompt[step].mood}>
-          <h1 className="type-title3">{prompt[step].text}</h1>
+        <MascotSays beside mood={prompt[step].mood} size={wide ? 108 : 84}>
+          <h1 className={wide ? "text-[22px] leading-snug font-semibold tracking-[-0.03em]" : "type-title3"}>{prompt[step].text}</h1>
         </MascotSays>
 
         {step === "role" ? (
@@ -543,7 +554,7 @@ export function AuthFlow({
       </form>
 
       {step === "address" && !address ? null : (
-        <div className="px-5 pt-2" style={{ paddingBottom: "calc(var(--safe-bottom) + 14px)" }}>
+        <div className={wide ? "mx-auto w-full max-w-[420px] px-8 pt-2 pb-8" : "px-5 pt-2"} style={wide ? undefined : { paddingBottom: "calc(var(--safe-bottom) + 14px)" }}>
           <Button disabled={cta[step].disabled} loading={pending} onClick={cta[step].run}>
             {cta[step].label}
           </Button>

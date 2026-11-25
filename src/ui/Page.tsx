@@ -63,7 +63,7 @@ export function Page({ title, actions, hero, largeTitle = true, bottomBar, child
   return (
     <div
       ref={scroller}
-      className={`absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background ${active ? "vt-page" : ""}`}
+      className={`absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-y-contain bg-background lg:bg-card ${active ? "vt-page" : ""}`}
       style={{ scrollPaddingTop: `calc(var(--safe-top) + ${barHeight + 8}px)`, scrollPaddingBottom: `calc(var(--safe-bottom) + ${bottomSpace}px)` }}
     >
       <header

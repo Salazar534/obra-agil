@@ -105,22 +105,24 @@ export function Mascot({
 export function MascotSays({
   mood = "idle",
   size = 84,
+  beside = false,
   children,
   className = "",
 }: {
   mood?: MascotMood;
   size?: number;
+  beside?: boolean;
   children: ReactNode;
   className?: string;
 }) {
   return (
-    <div className={`flex items-end gap-1.5 ${className}`}>
+    <div className={`flex gap-3 ${beside ? "items-center" : "items-end gap-1.5"} ${className}`}>
       <Mascot mood={mood} size={size} className="mascot-enter shrink-0" />
       <div
-        className="anim-pop relative mb-[22%] min-w-0 rounded-[22px] bg-card px-4 py-3 elev-1"
+        className={`anim-pop relative min-w-0 rounded-[22px] bg-card px-4 py-3 elev-1 ${beside ? "" : "mb-[22%]"}`}
         style={{ animationDelay: "220ms" }}
       >
-        <span aria-hidden="true" className="absolute -left-[5px] bottom-4 size-3.5 rotate-45 rounded-[3px] bg-card" />
+        <span aria-hidden="true" className={`absolute size-3.5 rotate-45 rounded-[3px] bg-card ${beside ? "top-1/2 -left-[5px] -translate-y-1/2" : "-left-[5px] bottom-4"}`} />
         <div className="relative">{children}</div>
       </div>
     </div>

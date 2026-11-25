@@ -264,6 +264,24 @@ a {
   }
 }
 
+@media (min-width: 768px) and (max-width: 1023px) {
+  .device.device-plain {
+    width: 100%;
+    height: 100dvh;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+.device-plain {
+  --safe-top: 0px;
+  --safe-bottom: 0px;
+}
+
+.device-plain .vt-chrome {
+  display: none;
+}
+
 .stage {
   position: relative;
   height: 100%;

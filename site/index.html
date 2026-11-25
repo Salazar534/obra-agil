@@ -3,216 +3,396 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Obi Ágil — Alugue por alguns dias</title>
-    <meta name="description" content="Alugue o que você só precisa por alguns dias: obra, festa, foto, roupa, bike, móvel. Perto do seu endereço. Pix ou cartão em até 12x." />
+    <title>Obi Ágil — Você não compra o que só usa hoje</title>
+    <meta name="description" content="Alugue perto do seu endereço e devolva quando terminar. Obra, festa, foto, roupa e mais. Pix ou cartão em até 12x. A caução volta na devolução." />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://obiagil.com.br/" />
-    <link rel="stylesheet" href="/styles.css?v=5" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css?v=20" />
   </head>
   <body>
-    <main class="gate">
-      <div class="gate-photo">
-        <img src="/img/landing/morning.jpg" alt="" />
-      </div>
-      <div class="gate-meet">
-        <div class="obi" data-mood="wave" style="--size: 108px" role="img" aria-label="Obi, o mascote da Obi Ágil"></div>
-        <p class="bubble">Oi! Eu sou o Obi.</p>
-      </div>
-      <div class="gate-copy">
-        <h1>Obi Ágil</h1>
-        <p>Alugue o que precisar, ofereça um serviço ou anuncie o que você tem.</p>
-      </div>
-      <div class="gate-actions">
-        <a class="solid big" href="https://app.obiagil.com.br">Criar conta</a>
-        <a class="tint big" href="https://app.obiagil.com.br">Já tenho conta</a>
-      </div>
-    </main>
-
-    <div class="site">
-      <header class="bar">
+    <header class="bar">
+      <div class="wrap bar-row">
         <a class="brand" href="#topo">
-          <span class="obi" data-mood="wave" style="--size: 40px" aria-hidden="true"></span>
+          <img class="mark" src="/img/logo-mark.png?v=10" alt="" />
           Obi Ágil
         </a>
-        <nav class="links">
-          <a href="#dia">O dia</a>
-          <a href="#anunciar">Quem tem</a>
+        <nav class="links" aria-label="Seções">
+          <a href="#pedido">O pedido</a>
+          <a href="#loja">Para a loja</a>
+          <a href="#servico">Serviços</a>
+          <a href="#perguntas">Perguntas</a>
         </nav>
-        <nav class="account">
-          <a class="text" href="https://app.obiagil.com.br">Entrar</a>
-          <a class="solid" href="https://app.obiagil.com.br">Criar conta</a>
+        <nav class="account" aria-label="Conta">
+          <a class="text" data-gate="entrar" href="https://app.obiagil.com.br/?conta=entrar">Entrar</a>
+          <a class="solid" data-gate="criar" href="https://app.obiagil.com.br/?conta=criar">Criar conta</a>
+          <details class="menu">
+            <summary>Menu</summary>
+            <div>
+              <a href="#pedido">O pedido</a>
+              <a href="#loja">Para a loja</a>
+              <a href="#servico">Serviços</a>
+              <a href="#catalogo">Catálogo</a>
+              <a href="#perguntas">Perguntas</a>
+              <a data-gate="entrar" href="https://app.obiagil.com.br/?conta=entrar">Entrar</a>
+            </div>
+          </details>
         </nav>
-      </header>
+      </div>
+    </header>
 
+    <main>
       <section class="hero" id="topo">
-        <div class="hero-copy">
-          <p class="kicker">Por alguns dias</p>
-          <h1>Você não precisa comprar o que só usa hoje.</h1>
-          <p class="lede">A obra pede uma betoneira. O ensaio, uma câmera. A festa, mesa e cadeira. O Obi mostra quem tem isso perto do seu endereço.</p>
-          <div class="actions">
-            <a class="solid big" href="https://app.obiagil.com.br">Quero alugar</a>
-            <a class="quiet big" href="#anunciar">Anunciar o que eu tenho</a>
-          </div>
-          <p class="range">Obra · Festa · Foto · Roupa · Bike · Móvel · Instrumento · Som</p>
+        <div class="hero-copy reveal">
+          <p class="pill"><span class="dot"></span> Aluguel de equipamentos, simples e rápido.</p>
+          <h1>Você não compra o que só usa hoje.</h1>
+          <p class="lede">Alugue equipamentos e ferramentas para a sua obra, reforma ou projeto, com reserva online, retirada rápida e suporte.</p>
+          <a class="solid hero-cta" data-gate="criar" href="https://app.obiagil.com.br/?conta=criar">Quero alugar</a>
+          <p class="fine">Parece que leva um minuto. Sem burocracia.</p>
         </div>
-        <figure class="hero-photo">
-          <img src="/img/landing/morning.jpg" alt="Mesa de festa, câmera e capacete juntos, à espera de quem precisa deles por um dia." />
-          <figcaption>
-            <span class="obi" data-mood="wave" style="--size: 132px" role="img" aria-label="Obi"></span>
-            <p>Diga o endereço. Eu mostro o que está livre.</p>
-          </figcaption>
-        </figure>
+        <div class="stage reveal">
+          <img class="obi obi-hero" src="/img/landing/obi-wave.png" alt="" />
+          <img class="hero-window" src="/img/landing/hero-window.jpg" alt="Painel de aluguéis com a betoneira 400 L por R$ 80 por dia." />
+          <a class="window-rent" data-gate="criar" href="https://app.obiagil.com.br/?conta=criar">Alugar</a>
+        </div>
       </section>
 
-      <section class="day" id="dia">
-        <header class="day-intro">
-          <p class="kicker">Um dia</p>
-          <h2>De manhã é obra. De tarde é festa. À noite devolve.</h2>
-        </header>
+      <hr class="fade" />
 
-        <article class="chapter">
-          <p class="when">Manhã</p>
-          <figure>
-            <img src="/img/landing/obra.jpg" alt="Betoneira, escada e carrinho de areia num quintal em reforma." />
-          </figure>
-          <div>
-            <h3>A casa está no reboco.</h3>
-            <p>A betoneira volta amanhã. A escada também. Você paga o dia, não a máquina.</p>
+      <section class="band" id="pedido">
+        <div class="wrap split reveal">
+          <div class="copy">
+            <p class="kicker">O pedido</p>
+            <h2>Aluga a betoneira por dois dias.</h2>
+            <p>O cliente entra em contato, confirma a disponibilidade, aluga por dois dias e pede a devolução da caução quando termina.</p>
+            <ul class="checks">
+              <li>A conversa e o telefone ficam no mesmo pedido</li>
+              <li>A caução volta quando a loja confirma a devolução</li>
+              <li>Pix ou cartão em até 12x</li>
+            </ul>
+            <a class="text-link" data-gate="criar" href="https://app.obiagil.com.br/?conta=criar">Quero alugar</a>
           </div>
-        </article>
-
-        <article class="chapter flip">
-          <p class="when">Tarde</p>
-          <figure class="tall">
-            <img src="/img/landing/dress.jpg" alt="Vestido branco e uma câmera com lente, num quarto com luz de janela." />
-          </figure>
-          <div>
-            <h3>O quarto vira camarim.</h3>
-            <p>Vestido por um fim de semana. Câmera por um ensaio. Quem tem está a alguns quarteirões, não numa loja do outro lado da cidade.</p>
+          <div class="notes">
+            <img class="obi obi-float" src="/img/landing/obi-phone.png" alt="" />
+            <article class="note dark">
+              <p class="kicker">Aluguel de equipamentos</p>
+              <h3>Dois dias, com devolução marcada.</h3>
+              <p>Cliente: Oi! Vocês alugam betoneira?</p>
+              <p class="reply">Loja: Temos a 400 L por R$ 80 o dia. Retira hoje.</p>
+            </article>
+            <article class="note">
+              <p class="kicker">Conversa no telefone</p>
+              <h3>A mesma negociação, por voz.</h3>
+              <p>A loja confirma o aluguel e o retorno da caução depois da entrega.</p>
+            </article>
           </div>
-        </article>
-
-        <article class="chapter night">
-          <p class="when">Noite</p>
-          <figure>
-            <img src="/img/landing/night.jpg" alt="Mesa comprida e cadeiras num quintal ao anoitecer, com um som ao lado." />
-          </figure>
-          <div>
-            <h3>A mesa já está no quintal.</h3>
-            <p>Cadeira, som, luz. De manhã alguém busca. A caução volta quando a devolução é confirmada.</p>
-          </div>
-        </article>
+        </div>
       </section>
 
-      <section class="measure" aria-label="Como o aluguel acontece">
-        <h2>O endereço muda a lista.</h2>
-        <ol>
-          <li>
-            <span>01</span>
-            <strong>Onde você está</strong>
-            <p>A busca é de quem entrega até esse ponto. Não uma vitrine do país inteiro.</p>
-          </li>
-          <li>
-            <span>02</span>
-            <strong>Por quantos dias</strong>
-            <p>O valor é do período. Obra, festa ou ensaio: o mesmo gesto.</p>
-          </li>
-          <li>
-            <span>03</span>
-            <strong>Como paga</strong>
-            <p>Pix ou cartão em até 12x. A caução entra no total e volta na devolução.</p>
-          </li>
-        </ol>
+      <hr class="fade" />
+
+      <section class="band" id="alugar">
+        <div class="wrap split reveal">
+          <figure class="shot">
+            <img src="/img/landing/yard.jpg" alt="Betoneira, escada e carrinho de mão no pátio de uma obra." />
+            <img class="obi obi-on-photo" src="/img/landing/obi-mixer.png" alt="" />
+          </figure>
+          <div class="copy" id="pagamento">
+            <p class="kicker">No mesmo dia</p>
+            <h2>Alugue equipamentos no mesmo dia.</h2>
+            <p>Escolhe o equipamento e o período, reserva e paga com Pix ou cartão. A caução entra no pagamento e volta na devolução.</p>
+            <ul class="checks">
+              <li>Escolha o equipamento e o período</li>
+              <li>Reserve e pague com Pix</li>
+              <li>Retire ou receba no seu endereço</li>
+            </ul>
+            <a class="text-link" data-gate="criar" href="https://app.obiagil.com.br/?conta=criar">Quero alugar</a>
+          </div>
+        </div>
       </section>
 
-      <section class="own" id="anunciar">
-        <figure>
-          <img src="/img/landing/shop.jpg" alt="Garagem com bicicleta, cadeiras dobráveis, guitarra e uma caixa de som." />
-        </figure>
+      <hr class="fade" />
+
+      <section class="band" id="loja">
+        <div class="wrap split reveal">
+          <div class="copy">
+            <p class="kicker">Para a loja</p>
+            <h2>O estoque parado vira pedido pago.</h2>
+            <p>Anuncie o que já está na garagem. Preço por dia, caução e a confirmação quando o cliente devolve.</p>
+            <ul class="checks">
+              <li>Publicações online em uma única lista</li>
+              <li>Preços do seu tabelado de locação</li>
+              <li>Aprovação e assinatura para alugar</li>
+            </ul>
+            <a class="text-link" data-gate="loja" href="https://app.obiagil.com.br/?conta=loja">Anunciar meu estoque</a>
+          </div>
+          <figure class="shot">
+            <img src="/img/landing/garage.jpg" alt="Garagem com bicicleta, cadeiras, violão e caixa de som parados." />
+            <img class="obi obi-on-photo" src="/img/landing/obi-clip.png" alt="" />
+          </figure>
+        </div>
+      </section>
+
+      <hr class="fade" />
+
+      <section class="band" id="servico">
+        <div class="wrap split reveal">
+          <figure class="shot">
+            <img src="/img/landing/paint.jpg" alt="Sala em reforma com bandeja, rolo e fita, pronta para pintura." />
+            <img class="obi obi-on-photo" src="/img/landing/obi-paint.png" alt="" />
+          </figure>
+          <div class="copy">
+            <p class="kicker">Serviços</p>
+            <h2>O orçamento sai no mesmo pedido.</h2>
+            <p>Pintura, montagem, frete. O cliente descreve o serviço, você confirma o valor e o pedido segue no mesmo lugar do aluguel.</p>
+            <ul class="checks">
+              <li>O pedido descreve o serviço</li>
+              <li>O valor fica visível antes de aceitar</li>
+              <li>A conversa não sai do pedido</li>
+            </ul>
+            <a class="text-link" data-gate="loja" href="https://app.obiagil.com.br/?conta=loja">Anunciar um serviço</a>
+          </div>
+        </div>
+      </section>
+
+      <hr class="fade" />
+
+      <section class="band" id="catalogo">
+        <div class="wrap center reveal">
+          <div class="with-obi">
+            <img class="obi" src="/img/landing/obi-welcome.png" alt="" />
+            <div>
+              <h2>Não é só betoneira.</h2>
+              <p class="lede">Obra de manhã, festa à tarde, foto no fim de semana.</p>
+            </div>
+          </div>
+          <ul class="kinds">
+            <li><a data-gate="criar" href="https://app.obiagil.com.br/?conta=criar"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg></span>Obra</a></li>
+            <li><a data-gate="criar" href="https://app.obiagil.com.br/?conta=criar"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21V3M16 21V3M8 7h8M8 12h8M8 17h8"/></svg></span>Altura</a></li>
+            <li><a data-gate="criar" href="https://app.obiagil.com.br/?conta=criar"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a5 5 0 0 1 5 5c0 3-5 4-5 8 0-4-5-5-5-8a5 5 0 0 1 5-5z"/><path d="M12 16v5"/></svg></span>Festa</a></li>
+            <li><a data-gate="criar" href="https://app.obiagil.com.br/?conta=criar"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4h-5L7 7H4v13h16V7h-3z"/><circle cx="12" cy="13" r="3"/></svg></span>Foto</a></li>
+            <li><a data-gate="criar" href="https://app.obiagil.com.br/?conta=criar"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10h12V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg></span>Roupa</a></li>
+            <li><a data-gate="criar" href="https://app.obiagil.com.br/?conta=criar"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M6 17 10 8h5l2 4h1M10 8 8 4"/></svg></span>Bike</a></li>
+            <li><a data-gate="criar" href="https://app.obiagil.com.br/?conta=criar"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12V8h16v4"/><path d="M2 14h20v4H2z"/><path d="M6 18v2M18 18v2"/></svg></span>Móvel</a></li>
+            <li><a data-gate="criar" href="https://app.obiagil.com.br/?conta=criar"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="16" r="2"/></svg></span>Instrumento</a></li>
+            <li><a data-gate="criar" href="https://app.obiagil.com.br/?conta=criar"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></span>Som</a></li>
+            <li><a data-gate="loja" href="https://app.obiagil.com.br/?conta=loja"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.2 2.2-2.2-2.2z"/></svg></span>Serviço</a></li>
+            <li><a data-gate="criar" href="https://app.obiagil.com.br/?conta=criar"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg></span>Limpeza</a></li>
+            <li><a data-gate="criar" href="https://app.obiagil.com.br/?conta=criar"><span class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-14h-7z"/></svg></span>Energia</a></li>
+          </ul>
+          <a class="more" data-gate="criar" href="https://app.obiagil.com.br/?conta=criar">Ver o catálogo</a>
+        </div>
+      </section>
+
+      <hr class="fade" />
+
+      <section class="band" id="perguntas">
+        <div class="wrap ask reveal">
+          <div class="with-obi">
+            <img class="obi" src="/img/landing/obi-think.png" alt="" />
+            <h2>Perguntas</h2>
+          </div>
+          <div class="faq">
+            <details>
+              <summary>Só funciona para obra?</summary>
+              <p>Não. Obra, festa, foto, roupa, bike, móvel, instrumento, som e serviço entram no mesmo catálogo.</p>
+            </details>
+            <details open>
+              <summary>A caução volta?</summary>
+              <p>Sim. Ela entra no pagamento e volta quando a loja confirma a devolução.</p>
+            </details>
+            <details>
+              <summary>Como a loja recebe?</summary>
+              <p>O pagamento cai na conta da loja. A caução fica retida até a devolução ser confirmada.</p>
+            </details>
+            <details>
+              <summary>Preciso buscar na loja?</summary>
+              <p>Depende do anúncio. Alguns itens são retirada. Outros combinam entrega no endereço.</p>
+            </details>
+            <details>
+              <summary>Como pago?</summary>
+              <p>Pix ou cartão em até 12x. A caução entra no mesmo pagamento.</p>
+            </details>
+            <details>
+              <summary>Os anúncios desta página são um pedido real?</summary>
+              <p>São exemplos de como o pedido aparece. O catálogo ao vivo abre depois da conta.</p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <hr class="fade" />
+
+      <section class="close" id="fechar">
+        <div class="wrap close-copy reveal with-obi">
+          <img class="obi" src="/img/landing/obi-cheer.png" alt="" />
+          <div>
+            <h2>Amanhã você devolve.</h2>
+            <p>A obra, a festa e o ensaio acabam. O equipamento volta. A caução também.</p>
+            <a class="solid" data-gate="criar" href="https://app.obiagil.com.br/?conta=criar">Criar conta</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-grid">
+        <div class="foot-brand">
+          <img class="obi obi-foot" src="/img/landing/obi-wave.png" alt="" />
+          <a class="brand" href="#topo">
+            <img class="mark" src="/img/logo-mark.png?v=10" alt="" />
+            Obi Ágil
+          </a>
+          <p>Aluguel perto do endereço. Pix ou cartão em até 12x. A caução volta na devolução.</p>
+        </div>
         <div>
-          <p class="kicker">Quem tem</p>
-          <h2>Se está parado na garagem, pode estar na casa de alguém hoje.</h2>
-          <p>Cadastre o que você aluga ou o serviço que você faz. O pedido chega no app, já pago. A taxa fica com a Obi Ágil. O resto cai na sua conta.</p>
-          <a class="solid big" href="https://app.obiagil.com.br">Anunciar</a>
+          <h2>Produto</h2>
+          <a href="#pedido">O pedido</a>
+          <a href="#pagamento">Pagamento</a>
+          <a href="#catalogo">Catálogo</a>
+          <a href="#perguntas">Perguntas</a>
         </div>
-      </section>
-
-      <section class="close">
         <div>
-          <h2>Amanhã você devolve.</h2>
-          <a class="ink big" href="https://app.obiagil.com.br">Entrar</a>
+          <h2>Loja</h2>
+          <a data-gate="loja" href="https://app.obiagil.com.br/?conta=loja">Anunciar estoque</a>
+          <a data-gate="loja" href="https://app.obiagil.com.br/?conta=loja">Anunciar um serviço</a>
+          <a href="#loja">Como a loja recebe</a>
         </div>
-        <span class="obi" data-mood="wave" style="--size: 148px" role="img" aria-label="Obi"></span>
-      </section>
+        <div>
+          <h2>Conta</h2>
+          <a data-gate="entrar" href="https://app.obiagil.com.br/?conta=entrar">Entrar</a>
+          <a data-gate="criar" href="https://app.obiagil.com.br/?conta=criar">Criar conta</a>
+        </div>
+      </div>
+      <div class="wrap legal">© 2026 Obi Ágil</div>
+    </footer>
 
-      <footer>
-        <strong>Obi Ágil</strong>
-        <p>Aluguel perto de você.</p>
-      </footer>
-    </div>
-
-    <template id="obi-shape">
-      <svg viewBox="0 0 200 216" class="mascot">
-        <defs>
-          <linearGradient x1="0" y1="0" x2="0" y2="1" data-grad="body">
-            <stop offset="0" stop-color="#5ea0ff" />
-            <stop offset="1" stop-color="#2f7bf6" />
-          </linearGradient>
-          <linearGradient x1="0" y1="0" x2="0" y2="1" data-grad="hat">
-            <stop offset="0" stop-color="#ffde59" />
-            <stop offset="1" stop-color="#ffc400" />
-          </linearGradient>
-        </defs>
-        <ellipse class="m-shadow m-part" cx="100" cy="206" rx="44" ry="6.5" fill="#0e1726" opacity="0.14" />
-        <g class="m-rig m-part">
-          <rect x="66" y="182" width="30" height="20" rx="10" fill="#ff9500" />
-          <rect x="104" y="182" width="30" height="20" rx="10" fill="#ff9500" />
-          <path d="M100 50C142 50 164 86 164 128C164 168 138 194 100 194C62 194 36 168 36 128C36 86 58 50 100 50Z" data-fill="body" />
-          <ellipse cx="100" cy="160" rx="40" ry="29" fill="#eaf2ff" />
-          <g class="m-arm-l m-part"><rect x="33" y="118" width="26" height="46" rx="13" fill="#1c5fd4" /></g>
-          <g class="m-arm-r m-part"><rect x="141" y="118" width="26" height="46" rx="13" fill="#1c5fd4" /></g>
-          <g class="m-eyes m-part">
-            <ellipse cx="80" cy="116" rx="16" ry="18" fill="#fff" />
-            <ellipse cx="120" cy="116" rx="16" ry="18" fill="#fff" />
-            <g class="m-pupils m-part">
-              <circle cx="83" cy="118" r="8.5" fill="#0e1726" />
-              <circle cx="117" cy="118" r="8.5" fill="#0e1726" />
-              <circle cx="86" cy="114" r="3" fill="#fff" />
-              <circle cx="120" cy="114" r="3" fill="#fff" />
-            </g>
-          </g>
-          <g class="m-cheer" fill="none" stroke="#0e1726" stroke-width="5" stroke-linecap="round">
-            <path d="M68 118 Q80 104 92 118" />
-            <path d="M108 118 Q120 104 132 118" />
-          </g>
-          <ellipse cx="62" cy="139" rx="9" ry="5.5" fill="#ff8ba7" opacity="0.65" />
-          <ellipse cx="138" cy="139" rx="9" ry="5.5" fill="#ff8ba7" opacity="0.65" />
-          <path class="m-smile" d="M88 142 Q100 154 112 142" fill="none" stroke="#0e1726" stroke-width="4.5" stroke-linecap="round" />
-          <path d="M50 84C50 48 72 28 100 28C128 28 150 48 150 84Z" data-fill="hat" />
-          <rect x="93" y="28" width="14" height="56" rx="7" fill="#eba300" opacity="0.4" />
-          <rect x="38" y="78" width="124" height="14" rx="7" fill="#eba300" />
-          <ellipse cx="74" cy="50" rx="7" ry="12" fill="#fff" opacity="0.5" transform="rotate(-24 74 50)" />
-        </g>
-      </svg>
-    </template>
+    <dialog class="gate" id="gate" aria-labelledby="gate-title">
+      <button type="button" class="gate-x" id="gate-x" aria-label="Fechar">×</button>
+      <div id="gate-intro">
+        <div class="gate-brand">
+          <img class="mark" src="/img/logo-mark.png?v=10" alt="" />
+          Obi Ágil
+        </div>
+        <h2 id="gate-title">Entrar</h2>
+        <p id="gate-copy">Celular ou e-mail. A conta abre aqui.</p>
+        <button type="button" class="solid" id="gate-go">Entrar</button>
+        <button type="button" class="gate-switch" id="gate-switch">Ainda não tenho conta</button>
+      </div>
+      <div id="gate-flow" hidden>
+        <iframe id="gate-frame" title="Cadastro e entrada da Obi Ágil"></iframe>
+      </div>
+    </dialog>
     <script>
-      const shape = document.getElementById("obi-shape");
-      document.querySelectorAll(".obi").forEach((slot, index) => {
-        const svg = shape.content.cloneNode(true).querySelector("svg");
-        svg.dataset.mood = slot.dataset.mood || "idle";
-        const label = slot.getAttribute("aria-label");
-        if (label) {
-          svg.setAttribute("role", "img");
-          svg.setAttribute("aria-label", label);
-        } else svg.setAttribute("aria-hidden", "true");
-        const body = "ob" + index;
-        const hat = "oh" + index;
-        svg.querySelector('[data-grad="body"]').id = body;
-        svg.querySelector('[data-grad="hat"]').id = hat;
-        svg.querySelector('[data-fill="body"]').setAttribute("fill", "url(#" + body + ")");
-        svg.querySelector('[data-fill="hat"]').setAttribute("fill", "url(#" + hat + ")");
-        slot.replaceChildren(svg);
+      const gate = document.getElementById("gate");
+      const intro = document.getElementById("gate-intro");
+      const flow = document.getElementById("gate-flow");
+      const frame = document.getElementById("gate-frame");
+      const title = document.getElementById("gate-title");
+      const copy = document.getElementById("gate-copy");
+      const go = document.getElementById("gate-go");
+      const swap = document.getElementById("gate-switch");
+      const modes = {
+        entrar: {
+          title: "Entrar",
+          copy: "Celular ou e-mail. A conta abre aqui.",
+          conta: "entrar",
+          label: "Entrar",
+          other: "criar",
+          otherLabel: "Ainda não tenho conta",
+        },
+        criar: {
+          title: "Criar conta",
+          copy: "Leva um minuto. Pix ou cartão em até 12x.",
+          conta: "criar",
+          label: "Criar conta",
+          other: "entrar",
+          otherLabel: "Já tenho conta",
+        },
+        loja: {
+          title: "Anunciar",
+          copy: "Cadastro da loja. Estoque, preço por dia e caução.",
+          conta: "loja",
+          label: "Começar cadastro",
+          other: "entrar",
+          otherLabel: "Já tenho conta",
+        },
+      };
+      let mode = "entrar";
+      function appOrigin() {
+        const host = location.hostname;
+        if (host === "obiagil.com.br" || host === "www.obiagil.com.br") return "https://app.obiagil.com.br";
+        if (host === "app.obiagil.com.br") return location.origin;
+        const local = host === "localhost" || host === "127.0.0.1" ? host : "127.0.0.1";
+        return `${location.protocol}//${local}:5173`;
+      }
+      function paint() {
+        const next = modes[mode];
+        title.textContent = next.title;
+        copy.textContent = next.copy;
+        go.textContent = next.label;
+        swap.textContent = next.otherLabel;
+        swap.dataset.other = next.other;
+      }
+      function showIntro() {
+        gate.classList.remove("gate-live");
+        flow.hidden = true;
+        intro.hidden = false;
+        frame.src = "about:blank";
+      }
+      function startFlow() {
+        const next = modes[mode];
+        gate.classList.add("gate-live");
+        intro.hidden = true;
+        flow.hidden = false;
+        frame.src = `${appOrigin()}/?embed=1&conta=${next.conta}`;
+      }
+      function openGate(name) {
+        mode = modes[name] ? name : "entrar";
+        showIntro();
+        paint();
+        if (!gate.open) gate.showModal();
+      }
+      document.querySelectorAll("[data-gate]").forEach((node) => {
+        node.addEventListener("click", (event) => {
+          event.preventDefault();
+          openGate(node.dataset.gate);
+        });
       });
+      swap.addEventListener("click", () => {
+        mode = swap.dataset.other;
+        paint();
+      });
+      go.addEventListener("click", startFlow);
+      document.getElementById("gate-x").addEventListener("click", () => gate.close());
+      gate.addEventListener("click", (event) => {
+        if (event.target === gate) gate.close();
+      });
+      gate.addEventListener("close", showIntro);
+      window.addEventListener("message", (event) => {
+        const data = event.data;
+        if (!data || data.source !== "obi-auth") return;
+        let expected = "";
+        try { expected = new URL(appOrigin()).origin; } catch { return; }
+        if (event.origin !== expected) return;
+        if (data.action === "close") showIntro();
+        if (data.action === "entered") location.assign(`${appOrigin()}/`);
+      });
+
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const blocks = document.querySelectorAll(".reveal");
+      if (reduce || !("IntersectionObserver" in window)) {
+        blocks.forEach((node) => node.classList.add("in"));
+      } else {
+        const watcher = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) entry.target.classList.add("in");
+          });
+        }, { threshold: 0.18 });
+        blocks.forEach((node) => watcher.observe(node));
+      }
     </script>
   </body>
 </html>

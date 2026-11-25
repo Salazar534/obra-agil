@@ -1,70 +1,65 @@
 import { useEffect, useState } from "react";
-import { useDesktop } from "../../lib/desktop.ts";
+import { useWideScreen } from "../../lib/desktop.ts";
+import { postNative } from "../../lib/native.ts";
 import { runTransition } from "../../lib/nav.tsx";
 import type { Role } from "../../lib/types.ts";
 import { AuthFlow, type AuthMode, type Prefill } from "./AuthFlow.tsx";
+import { isAuthEmbed, notifyAuthEmbed } from "./embed.ts";
 import { onboardingIntent } from "./intent.ts";
-import { AuthShowcase, Landing } from "./Landing.tsx";
-import { Welcome } from "./Welcome.tsx";
 
-type Screen = { name: "welcome" } | { name: "auth"; mode: AuthMode; role?: Role; prefill?: Prefill; key: number };
+type Screen = { name: "auth"; mode: AuthMode; role?: Role; prefill?: Prefill; key: number };
+
+function openingScreen(): Screen {
+  const conta = new URLSearchParams(window.location.search).get("conta");
+  if (conta === "loja" || onboardingIntent.value === "business") {
+    return { name: "auth", mode: "signup", role: "business", key: 1 };
+  }
+  if (conta === "criar") return { name: "auth", mode: "signup", key: 1 };
+  return { name: "auth", mode: "signin", key: 1 };
+}
 
 export function Onboarding() {
-  const [screen, setScreen] = useState<Screen>(() =>
-    onboardingIntent.value === "business" ? { name: "auth", mode: "signup", role: "business", key: 1 } : { name: "welcome" },
-  );
+  const [screen, setScreen] = useState<Screen>(openingScreen);
+  const wide = useWideScreen();
+  const embed = isAuthEmbed();
 
   useEffect(() => {
     onboardingIntent.value = null;
   }, []);
 
   useEffect(() => {
-    document.title = screen.name === "welcome" ? "Obi Ágil" : screen.mode === "signup" ? "Criar conta · Obi Ágil" : "Entrar · Obi Ágil";
-  }, [screen]);
+    document.title = screen.mode === "signup" ? "Criar conta · Obi Ágil" : "Entrar · Obi Ágil";
+  }, [screen.mode]);
 
-  const desktop = useDesktop();
-  const openSignUp = () => runTransition("push", () => setScreen({ name: "auth", mode: "signup", key: Date.now() }));
-  const openSignIn = () => runTransition("push", () => setScreen({ name: "auth", mode: "signin", key: Date.now() }));
+  const leave = () => {
+    if (embed) notifyAuthEmbed("close");
+    else postNative({ type: "exit" });
+  };
+  const show = (next: Screen) => runTransition("push", () => setScreen(next));
 
-  if (desktop && screen.name === "welcome") {
-    return <Landing onSignUp={openSignUp} onSignIn={openSignIn} />;
-  }
-
-  if (desktop && screen.name === "auth") {
-    return (
-      <div className="absolute inset-0 grid grid-cols-[minmax(0,1fr)_minmax(400px,480px)] bg-[#f4f1ea]">
-        <AuthShowcase onHome={() => runTransition("pop", () => setScreen({ name: "welcome" }))} />
-        <div className="relative h-full min-h-0 overflow-hidden bg-background">
-          <AuthFlow
-            key={screen.key}
-            mode={screen.mode}
-            initialRole={screen.role}
-            prefill={screen.prefill}
-            onExit={() => runTransition("pop", () => setScreen({ name: "welcome" }))}
-            onSwitch={(mode, prefill) => runTransition("push", () => setScreen({ name: "auth", mode, prefill, key: Date.now() }))}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  if (screen.name === "welcome") {
-    return (
-      <Welcome
-        onSignUp={() => runTransition("push", () => setScreen({ name: "auth", mode: "signup", key: Date.now() }))}
-        onSignIn={() => runTransition("push", () => setScreen({ name: "auth", mode: "signin", key: Date.now() }))}
-      />
-    );
-  }
-
-  return (
+  const flow = (
     <AuthFlow
       key={screen.key}
       mode={screen.mode}
       initialRole={screen.role}
       prefill={screen.prefill}
-      onExit={() => runTransition("pop", () => setScreen({ name: "welcome" }))}
-      onSwitch={(mode, prefill) => runTransition("push", () => setScreen({ name: "auth", mode, prefill, key: Date.now() }))}
+      onExit={leave}
+      wide={false}
+      panel={wide && !embed}
+      onSwitch={(mode, prefill) => show({ name: "auth", mode, prefill, key: Date.now() })}
     />
+  );
+
+  if (embed || !wide) return flow;
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center p-6">
+      <div
+        className="w-full max-w-[440px] overflow-hidden rounded-[28px] border border-border bg-background elev-2"
+        style={{ "--safe-top": "0px", "--safe-bottom": "0px" }}
+      >
+        {flow}
+      </div>
+    </div>
   );
 }
